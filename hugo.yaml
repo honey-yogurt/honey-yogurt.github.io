@@ -1,0 +1,89 @@
+baseURL: https://honey-yogurt.github.io
+languageCode: en-us
+title: Blog website
+paginate: 50 # Number of item to show in the changelog section before pagination
+
+module:
+  imports:
+    - path: github.com/imfing/hextra
+outputs:
+  home: [HTML]
+  page: [HTML]
+  section: [HTML, RSS]
+
+markup:
+  # allow raw html
+  goldmark:
+    renderer:
+      unsafe: true
+
+enableInlineShortcodes: true
+
+defaultContentLanguage: en
+languages:
+  en:
+    languageName: English
+    weight: 1
+  zh-cn:
+    languageName: 简体中文
+    weight: 2
+
+menu:
+  main:
+    - identifier: documentation
+      name: 📚 Documentation
+      pageRef: /docs
+      weight: 1
+    - identifier: blog
+      name: 📝 Blog
+      pageRef: /blog
+      weight: 2
+    - identifier: about
+      name: 👨🏻‍🎓 About
+      pageRef: /about
+      weight: 3
+    - name: Search
+      weight: 4
+      params:
+        type: search
+    - name: GitHub
+      weight: 5
+      url: "https://github.com/honey-yogurt"
+      params:
+        icon: github
+
+params:
+  blog:
+    list:
+      displayTags: true
+
+  footer:
+    displayCopyright: true
+    displayPoweredBy: true
+    width: normal
+
+  displayUpdatedDate: true
+
+  # Search
+  search:
+    enable: true
+    type: flexsearch
+    flexsearch:
+      # index page by: content | summary | heading | title
+      index: content
+  theme:
+    # light | dark | system
+    default: system
+    displayToggle: true
+  page:
+    # full (100%), wide (90rem), normal (1280px)
+    width: full
+  navbar:
+    displayTitle: true
+    displayLogo: true
+    logo:
+      path: images/meebits_radius.png
+      dark: images/meebits_radius.png
+      link: /
+      width: 40
+      height: 20
