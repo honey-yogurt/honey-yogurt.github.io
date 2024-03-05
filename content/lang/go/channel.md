@@ -3,6 +3,7 @@ title: '通道'
 date: 2024-03-05T14:14:53+08:00
 ---
 > Don’t communicate by sharing memory; share memory by communicating.
+> 
 > 不要通过共享内存来通信，而应该通过通信来共享内存。
 
 通道类型的值本身就是**并发安全**的，这也是 Go 语言自带的、唯一一个可以满足并发安全性的类型。
@@ -31,7 +32,7 @@ type hchan struct {
 
 **环形队列**：数据缓冲区，队列的长度是在创建chan时指定。
 
-sendx和recvx分别表示队尾和队首。sendx 指示元素写入时存放到队列中的位置，recvx指示下一个被读取的元素在队列中位置 。
+sendx和recvx分别表示队尾和队首。sendx 指示元素写入时存放到队列中的位置，recvx指示下一个被读取的元素在队列中位置。
 
 **协程等待队列**：
 
