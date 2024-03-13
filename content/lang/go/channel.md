@@ -402,8 +402,9 @@ func createCases(chs ...chan int) []reflect.SelectCase {
 ### 无缓冲通道（Unbuffered Channel）
 
 无缓冲 channel 没有容量，因此进行任何交换前需要两个 goroutine 同时准备好。当 goroutine 试图将一个资源发送到一个无缓冲的通道并且没有goroutine 等待接收该资源时，该通道将锁住发送 goroutine 并使其等待。当 goroutine 尝试从无缓冲通道接收，并且没有 goroutine 等待发送资源时，该通道将锁住接收 goroutine 并使其等待。
-
+{{% details title="展开图片" closed="true" %}}
 ![Unbuffered Channel](/images/lang/go/unbuffer-channel.png)
+{{% /details %}}
 
 **无缓冲信道的本质是保证同步**。
 
@@ -412,8 +413,9 @@ Receive（读） 先于 Send（写） 发生。 好处: 100% 保证能收到。 
 ### 缓冲通道（Buffered Channel ）
 
 buffered channel 具有容量，因此其行为可能有点不同。当 goroutine 试图将资源发送到缓冲通道，而该通道已满时，该通道将锁住 goroutine并使其等待缓冲区可用。如果通道中有空间，发送可以立即进行，goroutine 可以继续。当goroutine 试图从缓冲通道接收数据，而缓冲通道为空时，该通道将锁住 goroutine 并使其等待资源被发送。
-
+{{% details title="展开图片" closed="true" %}}
 ![Buffered Channel ](/images/lang/go/buffer-channel.png)
+{{% /details %}}
 
 
 
@@ -435,7 +437,9 @@ dispatcher 会把待处理任务队列中的任务放到一个可用的缓存队
 
 第二个例子是 etcd 中的 node 节点的实现，包含大量的 chan 字段，比如 recvc 是消息处理的 chan，待处理的 protobuf 消息都扔到这个 chan 中，node 有一个专门的 run goroutine 负责处理这些消息。
 
+{{% details title="展开图片" closed="true" %}}
 ![etcd-node](/images/lang/go//etcd-node.png)
+{{% /details %}}
 
 ### 数据传递
 

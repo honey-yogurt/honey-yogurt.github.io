@@ -31,23 +31,27 @@ languages:
 menu:
   main:
     - identifier: language
-      name: 📚 language
+      name: 📚 Lang
       pageRef: /lang
       weight: 1
-    - identifier: blog
-      name: 📝 Blog
-      pageRef: /blog
+    - identifier: CSCore
+      name: 📖 CSCore
+      pageRef: /cs
       weight: 2
+    - identifier: Blockchain
+      name: 🧾 Blockchain
+      pageRef: /blockchain
+      weight: 3
     - identifier: about
       name: 👨🏻‍🎓 About
       pageRef: /about
-      weight: 3
-    - name: Search
       weight: 4
+    - name: Search
+      weight: 5
       params:
         type: search
     - name: GitHub
-      weight: 5
+      weight: 6
       url: "https://github.com/honey-yogurt"
       params:
         icon: github
