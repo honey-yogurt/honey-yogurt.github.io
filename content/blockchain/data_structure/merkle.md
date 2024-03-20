@@ -1,5 +1,5 @@
 +++
-title = 'Merkle'
+title = 'Merkle Tree'
 date = 2024-03-19T09:24:12+08:00
 +++
 
