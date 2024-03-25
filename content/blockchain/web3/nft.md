@@ -195,6 +195,49 @@ interface ERC721 /* is ERC165 */ {
 }
 ```
 
+## ERC1155
+ERC1155相比于ERC721简而言之最大的区别就是它可以一个合约承载多类FT与NFT，可以将其理解为是ERC20和ERC721的融合加强版，想发行同质化和非同质化的代币1155全部搞定，而不用用多个合约承载再进行交互。
+
+ERC721是一个合约承载1类NFT，1类NFT承载多个NFT，如无聊猿，它的合约有且仅能发行无聊猿这一套NFT，每个具体的NFT编号均不相同为递增，但是ERC1155一个合约可以发行多类NFT，它最常用的场景在游戏，比如一个游戏中，可能会有很多类装备如“武器”、“坐骑”、“药品”等，这些装备有的是非同质化的，比如屠龙宝刀只有1个，有的是同质化的比如药品都是一样的喝一瓶补10滴血，而传统的721只能发行一类实体，但是1155却可以发行多类，说起来还有点抽象是不是，直接上代码。
+
+我们来演示一个最简单的1155协议合约，自上而下，我先创建了3种代币类型分别为武器wq、坐骑zj和宝石bs，他们的编号分别为0、1、2。
+
+然后我定义这三类代币的发售最大数量分别为1、10和9999。
+
+在mint函数中，传入三个参数分别为地址、代币编号和数量，依次校验当前用户要mint的代币类型数量是否超过了最大发售数，若未超过则执行mint操作，这里大家注意，相比721的mint这里的mint多传入了一个id，这个id即1155协议中定义的代币类型，同样的在校验的过程中用到了totalSupply相比如721多传入了id，也是因为有多个代币类型，所以需要用id来检索到底要获取的是哪一个代币类型的数量。
+
+```solidity
+contract MyToken is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC1155Supply{
+    constructor() ERC1155(""){}
+    uint256 public constant wq = 0;
+    uint256 public constant zj = 1;
+    uint256 public constant bs = 2;
+    uint256 wq_max =1;
+    uint256 zj_max=10;
+    uint256 bs_max=9999;
+
+    function mint(address account,uint256 id,uint256 amount) public onlyOwner {
+        if(id == 0) {
+            require(totalSupply(0) + amount <= wq_max,"Purchase: Max supply reached");
+        }
+        if(id == 1) {
+            require(totalSupply(1) + amount <= zj_max, "Purchase: Max supply reached");
+        } 
+        if(id == 2) {
+            require(totalSupply(2) + amount <= bs_max, "Purchase: Max supply reached");
+        }
+        _mint(account,id,amount,"");
+    }
+}
+```
 
 
-ERC 404
+## ERC404
+ERC-404 是一种介于 ERC-20 和ERC-721 之间的试验性的代币标准。
+
+简单来讲，ERC-404 是一个可以让 NFT 像数字代币一样进行拆分交易，实现“图币”互换的协议，即 1 枚 ERC-404 代币会对应 1 枚 Replicant NFT。大白话来说就是，该协议可以把图片（NFT）转化为代币、把代币转化为图片，两者具有“绑定”的关系。
+
+而且，ERC-404 代币可以直接在 Uniswap 等去中心化平台进行交易，当你购买一个 ERC-404 代币时，你的钱包将自动获得一个 Replicant NFT。而当你卖出该代币时，对应的 NFT 将被自动销毁。
+
+当然，这里面还会涉及一个整数的问题，因为你只有购买（凑齐）一整枚 ERC-404 代币才可持有一个对应的 NFT。比如，你持有 0.5 个代币，那么就相当于拥有 0 个NFT。你持有 1 个代币，那么就相当于拥有 1 个NFT。你持有 1.5 个代币，那么就相当于拥有 1 个NFT。你持有 2 个代币，那么就相当于拥有 2 个NFT。以此类推。这个本质上是将 NFT 图片内容碎片化，因为 NFT 会随着手中代币数量的变化而变化，以此来造成独特的随机属性。
+
