@@ -16,3 +16,7 @@ date = 2024-03-25T09:21:16+08:00
 ## DeFi
 + [DeFi 概述](/blockchain/web3/defi)
 + [Uniswap]()
+
+## Oracle
++ [Oracle 概述](/blockchain/web3/oracle)
++ [Chainlink](/blockchain/web3/chainlink)
