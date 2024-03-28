@@ -140,4 +140,14 @@ KeepersCompatible 是用户合约，为了保证 KeepersRegistry 能成功回调
 + 第四个应用是**流动性管理和跨链 NFT 铸造**，比如在 Polygon mint 一个 NFT（因为以太坊主网gas比较贵）， 得到 ID 或者 features 属性值 （ 到底是稀有还是不稀有 ），这个数值可以通过 relay 写回到主网，帮助用户实现跨链铸造 NFT。 
 + 第五个应用是**动态 NFT**。它的逻辑是区块链上的 NFT，会随着现实世界中相关属性的变化而变化。比如天气NFT，外界下雨 NFT 就显示下雨，外界很热 NFT 就显示一个太阳。从外部获取数据，根据所获取的数据做出一些改变，这里就会频繁使用 Keepers。
 
+## Chainlink Any API
+Any API 可以将任何 web2 的数据作为数据源提供给链上。
+{{% details title="展开图片" closed="true" %}}
+![img.png](/images/blockchain/web3/chainlink-18.png)
+![img.png](/images/blockchain/web3/chainlink-19.png)
+{{% /details %}}
+Any API 由用户部署的 Consumer 合约和 Chainlink 部署的 Client LINK 合约 以及节点运营商部署的 Operator 合约组成。
+{{% details title="展开图片" closed="true" %}}
+![img.png](/images/blockchain/web3/chainlink-20.png)
+{{% /details %}}
 
