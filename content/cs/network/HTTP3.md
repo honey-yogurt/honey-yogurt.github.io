@@ -20,9 +20,9 @@ HTTP/2 多个请求是跑在一个 TCP 连接中的，那么当 TCP 丢包时，
 
 ## TCP 与 TLS 的握手时延迟
 发起 HTTPS 请求时，需要经过 TCP 三次握手和 TLS 四次握手（TLS 1.2）的过程，因此共需要 3 个 RTT 的时延才能发出请求数据。
-
+{{% details title="展开图片" closed="true" %}}
 ![img.png](/images/cs/network/HTTP3-2.png)
-
+{{% /details %}}
 另外，TCP 由于具有「拥塞控制」的特性，所以刚建立连接的 TCP 会有个「慢启动」的过程，它会对 TCP 连接产生“减速”效果。
 
 ## 网络迁移需要重新连接
@@ -46,9 +46,9 @@ QUIC 协议也有类似 HTTP/2 Stream 与多路复用的概念，也是可以在
 而其他流的数据报文只要被完整接收，HTTP/3 就可以读取到数据。这与 HTTP/2 不同，HTTP/2 只要某个流中的数据包丢失了，其他流也会因此受影响。
 
 所以，**QUIC 连接上的多个 Stream 之间并没有依赖，都是独立的，某个流发生丢包了，只会影响该流，其他流不受影响**。
-
+{{% details title="展开图片" closed="true" %}}
 ![img.png](/images/cs/network/HTTP3-3.png)
-
+{{% /details %}}
 ### 更快的连接建立
 对于 HTTP/1 和 HTTP/2 协议，TCP 和 TLS 是分层的，分别属于内核实现的传输层、OpenSSL 库实现的表示层，因此它们难以合并在一起，需要分批次来握手，先 TCP 握手，再 TLS 握手。
 
@@ -57,9 +57,9 @@ HTTP/3 在传输数据前虽然需要 QUIC 协议握手，这个握手过程只�
 但是 HTTP/3 的 QUIC 协议并不是与 TLS 分层，而是 **QUIC 内部包含了 TLS，它在自己的帧会携带 TLS 里的“记录”，再加上 QUIC 使用的是 TLS 1.3，因此仅需 1 个 RTT 就可以「同时」完成建立连接与密钥协商，甚至在第二次连接的时候，应用数据包可以和 QUIC 握手信息（连接信息 + TLS 信息）一起发送，达到 0-RTT 的效果**。
 
 如下图右边部分，HTTP/3 当会话恢复时，有效负载数据与第一个数据包一起发送，可以做到 0-RTT：
-
+{{% details title="展开图片" closed="true" %}}
 ![img.png](/images/cs/network/HTTP3-4.gif)
-
+{{% /details %}}
 ### 连接迁移
 基于 TCP 传输协议的 HTTP 协议，由于是通过四元组（源 IP、源端口、目的 IP、目的端口）确定一条 TCP 连接。
 
@@ -70,9 +70,9 @@ HTTP/3 在传输数据前虽然需要 QUIC 协议握手，这个握手过程只�
 ## HTTP/3
 
 HTTP/3 同 HTTP/2 一样采用二进制帧的结构，不同的地方在于 HTTP/2 的二进制帧里需要定义 Stream，而 HTTP/3 自身不需要再定义 Stream，直接使用 QUIC 里的 Stream，于是 HTTP/3 的帧的结构也变简单了。
-
+{{% details title="展开图片" closed="true" %}}
 ![img.png](/images/cs/network/HTTP3-5.png)
-
+{{% /details %}}
 从上图可以看到，HTTP/3 帧头只有两个字段：类型和长度。
 
 根据帧类型的不同，大体上分为数据帧和控制帧两大类，Headers 帧（HTTP 头部）和 DATA 帧（HTTP 包体）属于数据帧。
