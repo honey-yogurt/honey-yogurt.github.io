@@ -67,17 +67,26 @@ date = 2024-04-02T17:19:20+08:00
 {{% details title="展开图片" closed="true" %}}
 ![img.png](/images/cs/network/HTTPS-RSA-8.png)
 {{% /details %}}
-然后，客户端再发一个「**Encrypted Handshake Message（Finishd）**」消息，把**之前所有发送的数据做个摘要**，再用**会话密钥（master secret）加密一下**，让服务器做个验证，验证加密通信「是否可用」和「之前握手信息是否有被中途篡改过」。
+然后，客户端再发一个「**Encrypted Handshake Message（Finished）**」消息，把**之前所有发送的数据做个摘要**，再用**会话密钥（master secret）加密一下**，让服务器做个验证，验证加密通信「是否可用」和「之前握手信息是否有被中途篡改过」。
 {{% details title="展开图片" closed="true" %}}
 ![img.png](/images/cs/network/HTTPS-RSA-9.png)
 {{% /details %}}
 
-> Q: 发送的所有数据，是从 client hello 开始的吗？
+> Q: 发送的所有数据，是从 client hello 开始的吗？应该是包括客户端和服务端的吧？
+> 
+> A: 在TLS握手过程中，无论是客户端还是服务端发送的“Encrypted Handshake Message”（通常是“Finished”消息），它们都包含了整个握手过程中双方交换的全部消息的摘要。这意味着每一方计算摘要时，都会考虑自己和对方发送的所有消息，确保整个握手过程的完整性和安全性。
+> 
+> 这个机制确保了双方对整个握手过程有完全一致的理解和确认。每一方都验证了对方看到的握手消息与自己发送和接收的消息是一致的，这是TLS握手协议的一个关键安全特性。通过这样的设计，TLS能够抵御某些类型的攻击，比如中间人攻击，同时确保通信双方可以安全地协商出加密通信的密钥。
 
 可以发现，**「Change Cipher Spec」及之前传输的 TLS 握手数据都是明文**，之后都是对称密钥加密的密文。
 
 ## TLS 第四次握手
 服务器也是同样的操作，发「**Change Cipher Spec**」和「**Encrypted Handshake Message**」消息，如果双方都验证加密和解密没问题，那么握手正式完成。
+
+Change Cipher Spec 同样是明文。
+>Q: 为什么第四次握手还需要 Encrypted Handshake Message ，第三次握手不是已经将前面数据全摘要了吗？服务端验证没问题的话，为什么还要摘要加密一次？
+> 
+>A: 服务端验证了摘要，只是证明了客户端能够解密服务端的消息和使用正确的密钥加密消息，服务端发送的加密“Finished”消息让客户端也有机会证明服务端具有相同的能力。服务端不发送这个消息让客户端确认服务端同样可以解密和正确加密的话，客户端发送数据很可能是没有意义的。
 
 最后，就用「会话密钥」加解密 HTTP 请求和响应了。
 
