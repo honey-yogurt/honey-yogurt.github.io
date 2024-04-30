@@ -1358,29 +1358,49 @@ func mergeTwo(a, b <-chan interface{}) <-chan interface{} {
 下面是一个扇出模式的实现。从源 Channel 取出一个数据后，依次发送给目标 Channel。在发送给目标 Channel 的时候，可以同步发送，也可以异步发送：
 
 ```go
+// fanOut 扇出模式
+// ch 输入源
+// out 多个输出源
+// async 是否异步
 func fanOut(ch <-chan interface{}, out []chan interface{}, async bool) {
     go func() {
-        defer func() { //退出时关闭所有的输出chan
+        var wg sync.WaitGroup // 用于等待所有发送操作完成
+        defer func() {
+            wg.Wait() // 等待所有异步操作完成
+            // 退出时关闭所有的输出chan
+            // Q: 为什么关闭？
+            // A: 1.通知无更多数据，关闭一个通道意味着没有更多的数据将被发送到该通道。这是一种向接收方通知的机制，表明数据发送已经完成。
+            //    2.防止死锁，chan 不关闭，for-range 这个 chan 的 goroutine 不会退出，即使遍历完了
             for i := 0; i < len(out); i++ {
                 close(out[i])
             }
+            // Q: 为什么这里不用 for-range?
+            // A: for-range 循环会为每次迭代创建一个新的迭代变量实例（副本），尽管代价很小（因为是所谓的“浅复制”），但是我们还是没有必要复制。
         }()
 
-        for v := range ch { // 从输入chan中读取数据
-            v := v
-            for i := 0; i < len(out); i++ {
-                i := i
-                if async { //异步
+        for v := range ch { // 从输入 chan 中读取数据
+            // 当你启动一个新的goroutine，闭包会捕获外部变量的引用，而不是变量的当前值。确保闭包中引用的是不同的变量
+            // go1.22 正式变更，每次生成的 循环变量 都是不同的变量（地址）
+            //v := v
+            //for i := 0; i < len(out); i++ {
+            for i := range len(out) { // go1.22 支持 range 整数
+                //i := i
+                if async { // 异步
+                    wg.Add(1) // 每启动一个 goroutine，计数器加 1
                     go func() {
-                        out[i] <- v // 放入到输出chan中,异步方式
+                        defer wg.Done() // 操作完成，计数器减 1
+                        out[i] <- v // 放入到输出chan中,异步方式。 v i 在异步方式中都是闭包捕获变量
+                        // 如果是无缓冲通道或者是缓冲通道已经写满，后续协程阻塞，但是 for 循环不阻塞，正常 defer close chan，导致阻塞的协程会触发 panic: send on closed channel.
+                        // 需要引入 WaitGroup
                     }()
                 } else {
                     out[i] <- v // 放入到输出chan中，同步方式
-                }
+				}
             }
         }
     }()
 }
+
 ```
 
 #### Stream
