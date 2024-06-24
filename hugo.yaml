@@ -42,12 +42,16 @@ menu:
       name: 🧾 Blockchain
       pageRef: /blockchain
       weight: 3
+    - identifier: algorithm
+      name: 🌲 algo
+      pageRef: /algorithm
+      weight: 4
     - identifier: about
       name: 👨🏻‍🎓 About
       pageRef: /about
-      weight: 4
-    - name: Search
       weight: 5
+    - name: Search
+      weight: 6
       params:
         type: search
     - name: GitHub
