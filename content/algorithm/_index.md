@@ -1,5 +1,5 @@
 +++
-title = 'Algorithm'
+title = 'algorithm'
 date = 2024-06-24T22:39:58+08:00
 +++
 
