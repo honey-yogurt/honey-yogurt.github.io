@@ -23,8 +23,8 @@ markup:
             - - $$
               - $$
           inline:
-            - - \(
-              - \)
+            - - $
+              - $
         enable: true
     renderer:
       unsafe: true
