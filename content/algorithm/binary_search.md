@@ -107,4 +107,108 @@ func binarySearch(arr []int, low, high, target int) int {
 如何编程实现“求一个数的平方根”？要求精确到小数点后6位。
 
 ## 二分查找变形问题
+默认有序数据集是**从小到大**排列为前提。
 
+### 查找第一个值等于给定值的元素
+比如下面这样一个有序数组，其中，a[5]，a[6]，a[7]的值都等于8，是重复的数据。我们希望查找第一个等于8的数据，也就是下标是5的元素。
+
+![img.png](/images/algorithm/algo-binarysearch-3.png)
+
+如果用之前那种简单的二分查找，首先拿8与区间的中间值a[4]比较，8比6大，于是在下标5到9之间继续查找。下标5和9的中间位置是下标7，a[7]正好等于8，所以代码就返回了。
+
+尽管a[7]也等于8，但它并不是我们想要找的第一个等于8的元素，因为第一个值等于8的元素是数组下标为5的元素。
+
+a[mid]跟要查找的value的大小关系有三种情况：大于、小于、等于。对于a[mid]>value的情况，我们需要更新high= mid-1；对于a[mid]<value的情况，我们需要更新low=mid+1。这两点都很好理解。那当a[mid]=value的时候应该如何处理呢？
+
+如果我们查找的是任意一个值等于给定值的元素，当a[mid]等于要查找的值时，a[mid]就是我们要找的元素。但是，如果我们求解的是第一个值等于给定值的元素，当a[mid]等于要查找的值时，我们就需要确认一下这个a[mid]是不是第一个值等于给定值的元素。
+
+```go
+func BinarySearchFirst(arr []int, target int) int {
+	low := 0
+	high := len(arr) - 1
+	for low <= high {
+		mid := low + ((high - low) >> 1)
+		if arr[mid] > target {
+			high = mid - 1
+		} else if arr[mid] < target {
+			low = mid + 1
+		} else {
+			// 如果mid等于0，那这个元素已经是数组的第一个元素，那它肯定是我们要找的；如果mid不等于0，但a[mid]的前一个元素a[mid-1]不等于value，那也说明a[mid]就是我们要找的第一个值等于给定值的元素。
+			if mid == 0 || arr[mid-1] != target {
+				return mid
+			} else {
+				// 如果经过检查之后发现a[mid]前面的一个元素a[mid-1]也等于value，那说明此时的a[mid]肯定不是我们要查找的第一个值等于给定值的元素。那我们就更新high=mid-1，因为要找的元素肯定出现在[low, mid-1]之间。
+				high = mid - 1
+			}
+		}
+	}
+	return -1
+}
+```
+
+### 查找最后一个值等于给定值的元素
+```go
+func BinarySearchLast(arr []int, target int) int {
+	low := 0
+	high := len(arr) - 1
+	for low <= high {
+		mid := low + ((high - low) >> 1)
+		if arr[mid] > target {
+			high = mid - 1
+		} else if arr[mid] < target {
+			low = mid + 1
+		} else {
+			// 最后一个或者后一个
+			if mid == len(arr)-1 || arr[mid+1] != target {
+				return mid
+			} else {
+				// 肯定是在后半区
+				low = mid + 1
+			}
+		}
+	}
+	return -1
+}
+```
+
+### 查找第一个大于等于给定值的元素
+```go
+func BinarySearchFirstMore(arr []int, target int) int {
+	low := 0
+	high := len(arr) - 1
+	for low <= high {
+		mid := low + ((high - low) >> 1)
+		if arr[mid] >= target {
+			if mid == 0 || arr[mid-1] < target {
+				return mid
+			} else {
+				high = mid - 1
+			}
+		} else {
+			low = mid + 1
+		}
+	}
+	return -1
+}
+```
+
+### 查找最后一个小于等于给定值的元素
+```go
+func BinarySearchLastLess(arr []int, target int) int {
+	low := 0
+	high := len(arr) - 1
+	for low <= high {
+		mid := low + ((high - low) >> 1)
+		if arr[mid] <= target {
+			if mid == len(arr)-1 || arr[mid+1] > target {
+				return mid
+			} else {
+				low = mid + 1
+			}
+		} else {
+			high = mid - 1
+		}
+	}
+	return -1
+}
+```
