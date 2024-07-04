@@ -12,22 +12,22 @@ Trie的核心思想是空间换时间。利用字符串的公共前缀来降低�
 2. 从根节点到某一节点，路径上经过的字符连接起来，为该节点对应的字符串。 
 3. 每个节点的所有子节点包含的字符都不相同。
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-1.png)
-{{% /details %}}
+
 
 具体来说：例如我有 "a"、"apple"、"appeal"、"appear"、"bee"、"beef"、"cat" 这 7 个单词，那么就能够组织成如图所示字典树，如果我们要获取 "apple" 这个单词的信息，那么就按顺序访问对应的节点就行啦。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-2.png)
-{{% /details %}}
+
 
 在简单的前缀树实现中，节点通常不直接存储值。节点的存在本身就是为了标识路径上的字符。然而，某些前缀树的实现会在终端节点（即代表键的完整路径的末尾节点）存储额外的信息，如是否是某个键的结尾、该键的出现次数、对应的值或其他与该键相关的数据。
 
 ## Patricia Tree（压缩前缀树）
 压缩前缀树，或称基数树，是一种更节省空间的 Trie（前缀树）。对于压缩前缀树的每个节点，如果该节点是确定的子树的话，就和父节点合并。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-3.png)
-{{% /details %}}
+
 
 
 ## Merkle Patricia Tree
@@ -41,9 +41,9 @@ Trie的核心思想是空间换时间。利用字符串的公共前缀来降低�
 节点可以利用数据库软件例如MySQL、SQLite或轻量级数据库LevelDB来存储，它需要保证查询一个索引时候快速高效。
 
 以太坊节点的路径是16格的Hex值，表示为0~f的16个元素，节点的第17个元素是节点存储。具体结构如下图所示, 数据库存储key和value为一组键值对。其中value包含了路径和数据 。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-5.png)
-{{% /details %}}
+
 > 注意上图是数据库中的状态
 > 
 >请不要将索引(key)与路径(Path)混为一谈。
@@ -72,9 +72,9 @@ Trie的核心思想是空间换时间。利用字符串的公共前缀来降低�
 最后是校验和。因为我们希望这组数据作为一个整体，无论添加、删除、变更，都能立即体现出来。所以势必引入一个Merkle树的概念，**对每层数据进行哈希，这是额外的功夫，这些哈希结果，放入索引部分**。
 
 具体拆分后是怎样存储的MPT树呢？
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-6.png)
-{{% /details %}}
+
 我们试着查找 路径 56f0 对应的数据:
 + 拆分 56f0 为 5、6、f、0 四格。 
 + 我们首先确认这条数据位于一个数据集，这个数据集的索引是 rootHash 。 
@@ -91,9 +91,9 @@ Trie的核心思想是空间换时间。利用字符串的公共前缀来降低�
 
 ### 空间效率改进的MPT树
 我们下面来改进一下这棵树，将部分节点改造合并、缩短路径，如图所示。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-7.png)
-{{% /details %}}
+
 
 上述改造中我们引入了部分新的规则，节点不再是统一的格式，而是分化成了四种格式。
 
@@ -109,9 +109,9 @@ hashE 就是典型的**叶子节点**，它包含了部分路径 {6f0} 与最终
 hashC 是一个**分支节点** ，它与叶子节点相似，包含了一个最终值 "chicken" ，但是也拥有一个对于 hashD 的索引，它不是树的终点，还可以往下继续查找下去。
 
 根节点，分支节点，扩展节点，叶子节点的简化关系如图：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-8.png)
-{{% /details %}}
+
 
 当我们在MPT树中查找路径 56f0 对应的 "horse" 值时，路径就大大缩短，按照如下步骤就可找到。
 
@@ -129,9 +129,9 @@ hashC 是一个**分支节点** ，它与叶子节点相似，包含了一个最
 当MPT树上某个叶子节点的数据更新后，此叶子节点的hash也会更新，随之而来的，是这个叶子节点回溯到根节点的所有中间节点的hash都会更新。最终，MPT根节点的hash也会更新。当要索引这个新的数据时，用MPT新的根节点hash，从底层数据库查出新的根节点，再往后一层层遍历，最终找到新的数据。而如果要查询历史数据，则可用老的树根hash，从底层数据库取出老的根节点，再往下遍历，就可查询到历史的数据。
 
 通过以太坊黄皮书中很经典的一张图，来了解不同节点的具体结构和作用
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-4.png)
-{{% /details %}}
+
 可以看到有四个状态要存储在世界状态的MPT树中，需要存入的值是键值对的形式。自顶向下，我们首先看到的keccak256生成的根哈希，参考默克尔树的Top Hash，其次看到的是绿色的扩展节点Extension Node，其中共同前缀shared nibble是a7，采用了压缩前缀树的方式进行了合并，接着看到蓝色的分支节点Branch Node，其中有表示十六进制的字符和一个value，最后的value是fullnode的数据部分，最后看到紫色的叶子节点leadfNode用来存储具体的数据，它同样对路径进行了压缩。
 
 ### 状态 State
@@ -154,9 +154,9 @@ state root是区块中的一个字段，每个区块对应着不同的“状态�
 + Hex-Prefix编码（16进制前缀编码）
 
 三者的关系如下图所示，分别解决的是MPT对外提供接口的编码，在内存中的编码，和持久化到数据库中的编码。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-9.png)
-{{% /details %}}
+
 #### Raw 编码
 MPT对外提供的API采用的就是Raw编码方式，这种编码方式不会对key进行修改，如果key是“foo”, value是"bar"，编码后的key就是["f", "o", "o"]。
 
@@ -236,7 +236,7 @@ MPT树节点Key的三种编码形式，但是这三种编码都是对key进行�
 在以太坊存储键值对之前会采用RLP编码对键值对进行转码，将键值对编码后作为value，计算编码后数据的哈希（keccak256）作为key，存储在levelDB中。
 
 在具体的实现中，为了避免出现相同的key，以太坊会给key增加一些前缀用作区分，比如合约中的MPT树，会增加合约地址，区块数据会增加表示区块的字符和区块号。 MPT树是以太坊非常非常核心的数据结构，在存储区块，交易，交易回执中都有用到，下图展示了MPT树的全貌，可以再感受一下MPT树的精巧。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/data_structure/mpt-10.png)
-{{% /details %}}
+
 其实随着数据的膨胀，LevelDB本身的读写速度都会变慢，这个是LevelDB实现导致的，这个也是制约MPT树性能的重要因素。

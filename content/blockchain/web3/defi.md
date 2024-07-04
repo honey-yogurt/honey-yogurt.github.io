@@ -13,9 +13,9 @@ DeFi 是基于开放的去中心化平台开发的一系列金融类应用，**�
 
 ## DeFi 的应用
 DeFi是一个比较大的区块链应用板块，可细分交易、借贷、衍生品、保险、预言机等，其中DeFi每个子板块都有许多不同的项目，而这些项目基本都有对应的代币，具体如下。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/web3/defi-1.pngtatic/images/blockchain/web3/defi-1.png)
-{{% /details %}}
+
 **交易**
 
 DeFi的交易板块主要是**去中心化交易所**（Decentralized Exchange，简称DEX），允许用户点对点交易各类虚拟货币，而且可以自己控制资产，不受Binance、Coinbase这样的中央机构控制。根据CMC显示，目前约有380个DEX平台，比较知名的项目有Uniswap（UNI）、PancakeSwap（CAKE）、Curve（CRV），以及针对DEX聚合器1inch.exchange（1inch）等。 (DEX聚合器，指的是把多个DEX平台汇聚在一起，帮助用户快速、低费率成交。）

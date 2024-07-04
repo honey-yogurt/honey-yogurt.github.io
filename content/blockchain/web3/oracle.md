@@ -28,19 +28,17 @@ date = 2024-03-25T21:20:43+08:00
 
 ## 预言机种类
 ### 中心化预言机
-{{% details title="展开图片" closed="true" %}}
-![img.png](/images/blockchain/web3/oracle-1.png)
-{{% /details %}}
 
-{{% details title="展开图片" closed="true" %}}
+![img.png](/images/blockchain/web3/oracle-1.png)
+
 ![img.png](/images/blockchain/web3/oracle-2.png)
-{{% /details %}}
+
 中心化预言机有可能网络故障宕机，或者是采取的数据源太过单一（数据源出问题，输入的数据也会出问题），其次，中心化预言机可能会看到链上的合约，从而伪造对于自己有利的数据。
 
 ### 去中心化预言机
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/web3/oracle-3.png)
-{{% /details %}}
+
 多个数据节点形成去中心化预言机网络，每个节点都会收集数据，达成共识后输入到区块链上的智能合约。
 共识的方式有很多种，可能是取平均数，也可能类似比赛打分，去掉一个最高分和去掉一个最低分再平均，或者是取中位数等等。
 1. 技术上，避免了单点失败风险
