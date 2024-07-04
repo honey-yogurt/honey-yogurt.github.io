@@ -6,9 +6,9 @@ date = 2024-03-21T12:42:31+08:00
 在 PBFT 一文中，提到了 PBFT 的缺点——网络复杂度高（O(n^2)）,一旦节点数量变多，网络复杂度会变得异常的高，不适合节点多的区块链。
 
 F（Fast）BFT 则是试图将其降至O(n)。降低的思路也非常清晰，在PBFT中是由各个节点同时对外广播自己签名后的信息，在FBFT中各个节点则是将信息统一发送给Leader，由Leader整合后再发换给节点们，由此降低了复杂度。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/consensus/fbft-1.png)
-{{% /details %}}
+
 简单的步骤如下：
 1. Announce 阶段，leader 打包区块，广播给所有的 Validator 节点；
 2. Prepare 阶段，Validator 验证消息并对区块哈希进行签名，将签名包统一发送给 leader节点，leader 节点收集到 2/3 个签名包之后，做聚合签名，广播给其他节点；
