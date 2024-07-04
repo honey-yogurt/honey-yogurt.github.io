@@ -40,9 +40,9 @@ FISCO BCOS系统中，leader索引的计算公式如下：
 > leader_idx = (view + block_number) % node_num
 
 下图简单展示了`4(3*f+1, f=1)`节点FISCO BCOS系统中，第三个节点(node3)为拜占庭节点情况下，视图切换过程：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/consensus/pbft_view.png)
-{{% /details %}}
+
 + 前三轮共识： node0、node1、node2为leader，且非恶意节点数目等于`2*f+1`，节点正常出块共识；
 + 第四轮共识：node3为leader，但node3为拜占庭节点，node0-node2在**给定时间内未收到node3打包的区块**，触发视图切换，试图切换到`view_new=view+1`的新视图，并相互间**广播viewchange包**，节点收集满在视图`view_new`上的`(2*f+1)`个viewchange包后，**将自己的view切换为`view_new`，并计算出新leader**；
 + 为第五轮共识：node0为leader，继续打包出块。
@@ -55,9 +55,9 @@ PBFT模块主要包括**PrepareReq、SignReq、CommitReq和ViewChangeReq**四种
 - **CommitReqPacket**: 用于**确认区块执行结果的提交请求**，由收集满`(2*f+1)`个block_hash相同且来自不同节点SignReq请求的节点产生，CommitReq被广播给所有其他共识节点，其他节点收集满`(2*f+1)`个block_hash相同、来自不同节点的CommitReq后，将本地节点缓存的**最新区块上链**；
 - **ViewChangeReqPacket**: 视图切换请求，当leader无法提供正常服务(如网络连接不正常、服务器宕机等)时, 其他共识节点会主动触发视图切换，ViewChangeReq中带有该节点即将切换到的视图(记为toView，为当前视图加一)，某节点收集满`(2*f+1)`个视图等于toView、来自不同节点的ViewChangeReq后，会将当前视图切换为toView。
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/consensus/pbft_architecture.png)
-{{% /details %}}
+
 
 PBFT共识主要包括两个线程:
 
@@ -72,10 +72,11 @@ PBFT共识主要包括Pre-prepare、Prepare和Commit三个阶段：
 - **Prepare**：负责收集签名包（其余节点收到 Pre-prepare 包之后，执行区块，签名广播），某节点收集满`2*f+1`的签名包后，表明自身达到可以提交区块的状态，开始广播Commit包；
 - **Commit**：负责收集Commit包，某节点收集满`2*f+1`的Commit包后，直接将本地缓存的最新区块提交到数据库。
 
-{{% details title="展开图片" closed="true" %}}
+
 ![pbft_process.png](/images/blockchain/consensus/pbft_process.png)
+
 ![img.png](/images/blockchain/consensus/pbft-1.png)
-{{% /details %}}
+
 
 > Q：为什么需要 commit 阶段，节点收到了 2f+1 个签名包（同意）直接执行交易写入区块不行吗？
 > 
@@ -87,9 +88,9 @@ PBFT共识主要包括Pre-prepare、Prepare和Commit三个阶段：
 ### leader 打包区块
 PBFT共识算法中，共识节点轮流出块，每一轮共识仅有一个leader打包区块，leader索引通过公式`(block_number + current_view) % consensus_node_num`计算得出。
 节点计算当前leader索引与自己索引相同后，就开始打包区块。区块打包主要由PBFTSealer线程完成，Sealer线程的主要工作如下图所示：
-{{% details title="展开图片" closed="true" %}}
+
 ![pbft_process.png](/images/blockchain/consensus/pbft-sealer.png)
-{{% /details %}}
+
 + **产生新的空块**: 通过区块链(BlockChain)获取当前最高块，并基于最高块产生新空块(将新区块父哈希置为最高块哈希，时间戳置为当前时间，交易清空)；
 + **从交易池打包交易**: 产生新空块后，从交易池中获取交易，并将获取的交易插入到产生的新区块中；
 + **组装新区块**: Sealer线程打包到交易后，将新区块的打包者(Sealer字段)置为自己索引，并根据打包的交易计算出所有交易的transactionRoot；
@@ -128,7 +129,7 @@ PBFT共识算法中，共识节点轮流出块，每一轮共识仅有一个lead
 
 ## 缺点
 PBFT 的一个问题在于网络的传输复杂度，由于n个节点需要向其余的n-1个节点进行广播，整个传输的复杂度是O(n^2).是制约效率的一个原因。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/blockchain/consensus/pbft-2.png)
-{{% /details %}}
+
 
