@@ -4,9 +4,9 @@ date = 2024-04-03T10:34:00+08:00
 +++
 
 ## HTTP 和 RPC
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/RPC-1.png)
-{{% /details %}}
+
 TCP 是传输层的协议，而基于 TCP 造出来的 HTTP 和各类 RPC 协议，它们都只是定义了不同消息格式的应用层协议而已。
 
 HTTP 协议（Hyper Text Transfer Protocol），又叫做超文本传输协议。我们用的比较多，平时上网在浏览器上敲个网址就能访问网页，这里用到的就是 HTTP 协议。
@@ -21,9 +21,9 @@ res = localFunc(req)
 ```c
 res = remoteFunc(req)
 ```
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/RPC-2.png)
-{{% /details %}}
+
 基于这个思路，大佬们造出了非常多款式的 RPC 协议，比如比较有名的gRPC，thrift。
 
 值得注意的是，虽然大部分 RPC 协议底层使用 TCP，但**实际上它们不一定非得使用 TCP，改用 UDP 或者 HTTP，其实也可以做到类似的功能**。
@@ -52,9 +52,9 @@ res = remoteFunc(req)
 以主流的 HTTP/1.1 协议为例，其默认在建立底层 TCP 连接之后会一直保持这个连接（Keep Alive），之后的请求和响应都会复用这条连接。
 
 而 RPC 协议，也跟 HTTP 类似，也是通过建立 TCP 长链接进行数据交互，但不同的地方在于，**RPC 协议一般还会再建个连接池**，在请求量大的时候，建立多条连接放在池内，要发数据的时候就从池里取一条连接出来，**用完放回去，下次再复用**，可以说非常环保。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/RPC-3.png)
-{{% /details %}}
+
 **由于连接池有利于提升网络请求性能，所以不少编程语言的网络库里都会给 HTTP 加个连接池**，比如 Go 就是这么干的。
 
 ### 传输的内容
@@ -65,20 +65,20 @@ Header 是用于标记一些特殊信息，其中**最重要的是消息体长�
 Body 则是放我们真正需要传输的内容，而这些内容只能是二进制 01 串，毕竟计算机只认识这玩意。所以 TCP 传字符串和数字都问题不大，因为字符串可以转成编码再变成 01 串，而数字本身也能直接转为二进制。但结构体呢，我们得想个办法将它也转为二进制 01 串，这样的方案现在也有很多现成的，比如 Json，Protobuf。
 
 这个将结构体转为二进制数组的过程就叫序列化，反过来将二进制数组复原成结构体的过程叫反序列化。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/RPC-4.png)
-{{% /details %}}
+
 对于主流的 HTTP/1.1，虽然它现在叫超文本协议，支持音频视频，但 HTTP 设计初是用于做网页文本展示的，所以它传的内容**以字符串为主**。Header 和 Body 都是如此。在 Body 这块，它使用 Json 来序列化结构体数据。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/RPC-5.png)
-{{% /details %}}
+
 可以看到这里面的内容非常多的**冗余**。最明显的，像 Header 里的那些信息，其实如果我们约定好头部的第几位是 Content-Type，就不需要每次都真的把"Content-Type"这个字段都传过来，类似的情况其实在 body 的 Json 结构里也特别明显。
 
 而 RPC，因为它定制化程度更高，可以采用体积更小的 Protobuf 或其他序列化协议去保存结构体数据，同时也**不需要像 HTTP 那样考虑各种浏览器行为**，比如 302 重定向跳转啥的。因此**性能也会更好一些**，这也是在公司内部微服务中抛弃 HTTP，选择使用 RPC 的最主要原因。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/RPC-6.png)
 ![img.png](/images/cs/network/RPC-7.png)
-{{% /details %}}
+
 当然上面说的 HTTP，其实特指的是**现在主流使用的 HTTP/1.1**，**HTTP/2** 在前者的基础上做了很多改进，所以**性能可能比很多 RPC 协议还要好**，甚至连 gRPC 底层都直接用的 HTTP/2。
 
 那么问题又来了，为什么既然有了 HTTP/2，还要有 RPC 协议？

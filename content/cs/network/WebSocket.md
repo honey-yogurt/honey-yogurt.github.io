@@ -26,16 +26,16 @@ date = 2024-04-01T09:37:54+08:00
 
 这样就减少了 HTTP 请求的个数，并且由于大部分情况下，用户都会在某个 30 秒的区间内做扫码操作，所以响应也是及时的。
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-1.png)
-{{% /details %}}
+
 
 比如，某度云网盘就是这么干的。所以你会发现一扫码，手机上点个确认，电脑端网页就秒跳转，体验很好。
 
 **像这种发起一个请求，在较长时间内等待服务器响应的机制，就是所谓的长轮询机制**。我们常用的消息队列 RocketMQ 中，消费者去取数据时，也用到了这种方式。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-2.png)
-{{% /details %}}
+
 
 像这种，在用户不感知的情况下，服务器将数据推送给浏览器的技术，就是所谓的**服务器推送**技术，它还有个毫不沾边的英文名，comet 技术，大家听过就好。
 
@@ -57,9 +57,9 @@ date = 2024-04-01T09:37:54+08:00
 于是新的应用层协议WebSocket就被设计出来了。
 
 大家别被这个名字给带偏了。虽然名字带了个socket，但其实 socket 和 WebSocket 之间，就跟雷峰和雷峰塔一样，**二者接近毫无关系**。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-3.png)
-{{% /details %}}
+
 
 WebSocket 是一种在单个TCP连接上进行全双工通信的协议。WebSocket 使得客户端和服务器之间的数据交换变得更加简单，允许服务端主动向客户端推送数据。
 
@@ -86,41 +86,41 @@ Upgrade: WebSocket\r\n
 Connection: Upgrade\r\n
 ```
 HTTP 状态码=200（正常响应）的情况，大家见得多了。101 确实不常见，它其实是指**协议切换**。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-4.png)
-{{% /details %}}
+
 之后，浏览器也用同样的公开算法将base64码转成另一段字符串，如果这段字符串跟服务器传回来的**字符串一致**，那验证通过。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-5.png)
-{{% /details %}}
+
 就这样经历了一来一回**两次 HTTP 握手**，WebSocket就建立完成了，后续双方就可以使用 webscoket 的数据格式进行通信了。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-6.png)
-{{% /details %}}
+
 
 
 ## WebSocket抓包
 我们可以用wireshark抓个包，实际看下数据包的情况。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-7.png)
-{{% /details %}}
+
 上面这张图，注意画了红框的第2445行报文，是**WebSocket的第一次握手**，意思是发起了一次带有特殊Header的HTTP请求。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-8.png)
-{{% /details %}}
+
 上面这个图里画了红框的4714行报文，就是服务器在得到第一次握手后，响应的**第二次握手**，可以看到这也是个 HTTP 类型的报文，返回的状态码是 101。同时可以看到返回的报文 header 中也带有各种WebSocket相关的信息，比如Sec-WebSocket-Accept。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-9.png)
-{{% /details %}}
+
 上面这张图就是全貌了，从截图上的注释可以看出，WebSocket和HTTP一样都是基于TCP的协议。**经历了三次TCP握手之后，利用 HTTP 协议升级为 WebSocket 协议**。
 
 你在网上可能会看到一种说法："WebSocket 是基于HTTP的新协议"，其实这并不对，因为WebSocket只有在建立连接时才用到了HTTP，升级完成之后就跟HTTP没有任何关系了。
 
 ## WebSocket的消息格式
 数据包在WebSocket中被叫做**帧**，我们来看下它的数据格式长什么样子。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-10.png)
-{{% /details %}}
+
 这里面字段很多，但我们只需要关注下面这几个。
 
 **opcode**字段：这个是用来标志这是个**什么类型的数据帧**。比如。
@@ -130,9 +130,9 @@ HTTP 状态码=200（正常响应）的情况，大家见得多了。101 确实�
 + 等于 8 ，是关闭连接的信号
 
 **payload**字段：存放的是我们**真正想要传输的数据的长度**，单位是**字节**。比如你要发送的数据是字符串"111"，那它的长度就是3。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-11.png)
-{{% /details %}}
+
 另外，可以看到，我们存放**payload 长度的字段有好几个**，我们既可以用最前面的7bit, 也可以用后面的7+16bit 或 7+64bit。
 
 那么问题就来了。
@@ -153,9 +153,9 @@ WebSocket的数据格式也是数据头（内含payload长度） + payload data 
 而**消息头里一般含有消息体的长度**，通过这个长度可以去截取真正的消息体。
 
 HTTP 协议和大部分 RPC 协议，以及我们今天介绍的WebSocket协议，都是这样设计的。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/websocket-12.png)
-{{% /details %}}
+
 
 ## WebSocket 如何限流
 实施限流时，应考虑以下因素：

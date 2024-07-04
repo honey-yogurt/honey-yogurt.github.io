@@ -45,9 +45,9 @@ HTTP/2 没使用常见的 gzip 压缩方式来压缩头部，而是开发了 HPA
 
 ### 静态表编码
 HTTP/2 为高频出现在头部的字符串和字段建立了一张静态表，它是写入到 HTTP/2 框架里的，不会变化的，静态表里共有 61 组，如下图：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-1.png)
-{{% /details %}}
+
 
 表中的 Index 表示索引（Key），Header Value 表示索引对应的 Value，Header Name 表示字段的名字，比如 Index 为 2 代表 GET，Index 为 8 代表状态码 200。
 
@@ -60,13 +60,13 @@ server: nghttpx\r\n
 算上冒号空格和末尾的\r\n，共占用了 17 字节，而使用了静态表和 Huffman 编码，可以将它压缩成 8 字节，压缩率大概 47%。
 
 我抓了个 HTTP/2 协议的网络包，你可以从下图看到，高亮部分就是 server 头部字段，只用了 8 个字节来表示 server 头部数据。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-2.png)
-{{% /details %}}
+
 根据 RFC7541 规范，如果头部字段属于静态表范围，并且 Value 是变化，那么它的 HTTP/2 头部**前 2 位固定为 01**，所以整个头部格式如下图：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-3.png)
-{{% /details %}}
+
 HTTP/2 头部由于基于**二进制编码**，就不需要冒号空格和末尾的\r\n作为分隔符，于是改用表示字符串长度（Value Length）来分割 Index 和 Value。
 
 接下来，根据这个头部格式来分析上面抓包的 server 头部的二进制数据。
@@ -78,13 +78,13 @@ HTTP/2 头部由于基于**二进制编码**，就不需要冒号空格和末尾
 最后，字符串 nghttpx 经过 Huffman 编码后压缩成了 6 个字节，**Huffman 编码的原理是将高频出现的信息用「较短」的编码表示，从而缩减字符串长度**。
 
 于是，在统计大量的 HTTP 头部后，HTTP/2 根据出现频率将 ASCII 码编码为了 Huffman 编码表，可以在 RFC7541 文档找到这张静态 Huffman 表，我就不把表的全部内容列出来了，我只列出字符串 nghttpx 中每个字符对应的 Huffman 编码，如下图：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-4.png)
-{{% /details %}}
+
 通过查表后，字符串 nghttpx 的 Huffman 编码在下图看到，共 6 个字节，每一个字符的 Huffman 编码，我用相同的颜色将他们对应起来了，最后的 7 位是补位的。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-5.png)
-{{% /details %}}
+
 最终，server 头部的二进制数据对应的静态头部格式如下：
 
 ## 动态表编码
@@ -103,38 +103,38 @@ HTTP/2 头部由于基于**二进制编码**，就不需要冒号空格和末尾
 HTTP/2 厉害的地方在于将 HTTP/1 的文本格式改成二进制格式传输数据，极大提高了 HTTP 传输效率，而且二进制数据使用位运算能高效解析。
 
 你可以从下图看到，HTTP/1.1 的响应和 HTTP/2 的区别：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-6.png)
-{{% /details %}}
+
 HTTP/2 把响应报文划分成了两类帧（Frame），图中的 HEADERS（首部）和 DATA（消息负载） 是帧的类型，也就是说一条 HTTP 响应，划分成了两类帧来传输，并且采用二进制来编码。
 
 比如状态码 200 ，在 HTTP/1.1 是用 '2''0''0' 三个字符来表示（二进制：00110010 00110000 00110000），共用了 3 个字节，如下图
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-7.png)
-{{% /details %}}
+
 在 HTTP/2 对于状态码 200 的二进制编码是 10001000，只用了 1 字节就能表示，相比于 HTTP/1.1 节省了 2 个字节，如下图：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-8.png)
-{{% /details %}}
+
 Header: :status: 200 OK 的编码内容为：1000 1000，那么表达的含义是什么呢？
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-9.png)
-{{% /details %}}
+
 + 最前面的 1 标识该 Header 是静态表中已经存在的 KV。
 + 我们再回顾一下之前的静态表内容，“:status: 200 OK”其静态表编码是 8，即 1000。
 
 因此，整体加起来就是 1000 1000。
 
 HTTP/2 二进制帧的结构如下图：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-10.png)
-{{% /details %}}
+
 帧头（Frame Header）很小，只有 9 个字节，帧开头的前 3 个字节表示帧数据（Frame Playload）的长度。
 
 帧长度后面的一个字节是表示**帧的类型**，HTTP/2 总共定义了 10 种类型的帧，一般分为**数据帧和控制帧**两类，如下表格：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-11.png)
-{{% /details %}}
+
 帧类型后面的一个字节是标志位，可以保存 8 个标志位，用于携带简单的控制信息，比如：
 + END_HEADERS 表示头数据结束标志，相当于 HTTP/1 里头后的空行（“\r\n”）；
 + END_Stream 表示单方向数据发送结束，后续不会再有数据帧。
@@ -148,30 +148,30 @@ HTTP/2 二进制帧的结构如下图：
 我们都知道 HTTP/1.1 的实现是基于请求-响应模型的。同一个连接中，HTTP 完成一个事务（请求与响应），才能处理下一个事务，也就是说在发出请求等待响应的过程中，是没办法做其他事情的，如果响应迟迟不来，那么后续的请求是无法发送的，也造成了队头阻塞的问题。
 
 而 HTTP/2 就很牛逼了，通过 Stream 这个设计，**多个 Stream 复用一条 TCP 连接，达到并发的效果**，解决了 HTTP/1.1 队头阻塞的问题，提高了 HTTP 传输的吞吐量。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-12.png)
-{{% /details %}}
+
 你可以从上图中看到：
 + 1 个 TCP 连接包含一个或者多个 Stream，Stream 是 HTTP/2 并发的关键技术；
 + Stream 里可以包含 1 个或多个 Message，Message 对应 HTTP/1 中的请求或响应，由 HTTP 头部和包体构成；
 + Message 里包含一条或者多个 Frame，Frame 是 HTTP/2 最小单位，以二进制压缩格式存放 HTTP/1 中的内容（头部和包体）；
 
 因此，我们可以得出个结论：**多个 Stream 跑在一条 TCP 连接，同一个 HTTP 请求与响应是跑在同一个 Stream 中，HTTP 消息可以由多个 Frame 构成， 一个 Frame 可以由多个 TCP 报文构成**。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-13.png)
-{{% /details %}}
+
 在 HTTP/2 连接上，**不同 Stream 的帧是可以乱序发送的（因此可以并发不同的 Stream ）**，因为**每个帧的头部会携带 Stream ID 信息**，所以接收端可以通过 Stream ID 有序组装成 HTTP 消息，而**同一 Stream 内部的帧必须是严格有序的**。
 
 比如下图，服务端并行交错地发送了两个响应： Stream 1 和 Stream 3，这两个 Stream 都是跑在一个 TCP 连接上，客户端收到后，会根据相同的 Stream ID 有序组装成 HTTP 消息。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-14.png)
-{{% /details %}}
+
 客户端和服务器双方都可以建立 Stream，因为服务端可以主动推送资源给客户端， **客户端建立的 Stream 必须是奇数号，而服务器建立的 Stream 必须是偶数号**。
 
 比如下图，Stream 1 是客户端向服务端请求的资源，属于客户端建立的 Stream，所以该 Stream 的 ID 是奇数（数字 1）；Stream 2 和 4 都是服务端主动向客户端推送的资源，属于服务端建立的 Stream，所以这两个 Stream 的 ID 是偶数（数字 2 和 4）。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-15.png)
-{{% /details %}}
+
 **同一个连接中的 Stream ID 是不能复用的，只能顺序递增，所以当 Stream ID 耗尽时，需要发一个控制帧 GOAWAY，用来关闭 TCP 连接**。
 
 在 Nginx 中，可以通过 http2_max_concurrent_Streams 配置来设置 Stream 的上限，默认是 128 个。
@@ -184,9 +184,9 @@ HTTP/2 还可以对每个 Stream 设置**不同优先级**，帧头中的「标�
 HTTP/1.1 不支持服务器主动推送资源给客户端，都是由客户端向服务器发起请求后，才能获取到服务器响应的资源。
 
 比如，客户端通过 HTTP/1.1 请求从服务器那获取到了 HTML 文件，而 HTML 可能还需要依赖 CSS 来渲染页面，这时客户端还要再发起获取 CSS 文件的请求，需要两次消息往返，如下图左边部分：
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-16.png)
-{{% /details %}}
+
 如上图右边部分，在 HTTP/2 中，客户端在访问 HTML 时，服务器可以直接主动推送 CSS 文件，减少了消息传递的次数。
 
 在 Nginx 中，如果你希望客户端访问 /test.html 时，服务器直接推送 /test.css，那么可以这么配置：
@@ -199,9 +199,9 @@ location /test.html {
 那 HTTP/2 的推送是怎么实现的？
 
 客户端发起的请求，必须使用的是奇数号 Stream，服务器主动的推送，使用的是偶数号 Stream。**服务器在推送资源时，会通过 PUSH_PROMISE 帧传输 HTTP 头部，并通过帧中的 Promised Stream ID 字段告知客户端**，接下来会在哪个偶数号 Stream 中发送包体。
-{{% details title="展开图片" closed="true" %}}
+
 ![img.png](/images/cs/network/HTTP2-17.png)
-{{% /details %}}
+
 如上图，在 Stream 1 中通知客户端 CSS 资源即将到来，然后在 Stream 2 中发送 CSS 资源，注意 Stream 1 和 2 是可以并发的。
 
 ## 队头阻塞

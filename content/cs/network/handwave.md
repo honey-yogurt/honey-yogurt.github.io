@@ -3,9 +3,9 @@ title = 'TCP三次握手和四次挥手'
 date = 2024-03-13T16:45:10+08:00
 +++
 ## TCP 头格式
-{{% details title="展开图片" closed="true" %}}
+
 ![TCP 头格式](/images/cs/network/format,png-20230309230534096.png)
-{{% /details %}}
+
 
 **序列号**：在建立连接时由计算机生成的随机数作为其初始值，通过 SYN 包传给接收端主机，每发送一次数据，就「累加」一次该「数据字节数」的大小。**用来解决网络包乱序问题。**
 
@@ -47,9 +47,9 @@ date = 2024-03-13T16:45:10+08:00
 ## 为什么需要 TCP 协议？ TCP 工作在哪一层？
 
 `IP` 层是「不可靠」的，它不保证网络包的交付、不保证网络包的按序交付、也不保证网络包中的数据的完整性。
-{{% details title="展开图片" closed="true" %}}
+
 ![OSI 参考模型与 TCP/IP 的关系](/images/cs/network/format,png-20230309230419839.png)
-{{% /details %}}
+
 
 如果需要**保障网络数据包的可靠性**，那么就需要由上层（传输层）的 `TCP` 协议来负责。
 
@@ -58,9 +58,9 @@ date = 2024-03-13T16:45:10+08:00
 ## 什么是 TCP
 
 TCP 是**面向连接的、可靠的、基于字节流**的传输层通信协议。
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/format,png-20230309230424714.png)
-{{% /details %}}
+
 
 - **面向连接**：一定是「**一对一**」才能连接，不能像 UDP 协议可以一个主机同时向多个主机发送消息，也就是一对多是无法做到的；
 - **可靠的**：无论的网络链路中出现了怎样的链路变化，TCP 都可以保证一个报文**一定能够到达接收端**；
@@ -73,9 +73,9 @@ TCP 是**面向连接的、可靠的、基于字节流**的传输层通信协议
 > *Connections: The reliability and flow control mechanisms described above require that TCPs initialize and maintain certain status information for each data stream. The combination of this information, including sockets, sequence numbers, and window sizes, is called a connection.*
 
 **用于保证可靠性和流量控制维护的某些状态信息的组合，包括 Socket、序列号和窗口大小称为连接。**
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/format,png-20230309230428466.png)
-{{% /details %}}
+
 
 所以我们可以知道，建立一个 TCP 连接是需要客户端与服务端达成上述三个信息的共识。
 
@@ -125,9 +125,9 @@ TCP 四元组可以唯一的确定一个连接，四元组包括如下：
 + 目的地址
 + 目的端口
 
-{{% details title="展开图片" closed="true" %}}
+
 ![TCP 四元组](/images/cs/network/format,png-20230309230433082.png)
-{{% /details %}}
+
 源地址和目的地址的字段（32 位）是在 IP 头部中，作用是通过**IP 协议发送报文给对方主机**。
 
 源端口和目的端口的字段（16 位）是在 TCP 头部中，作用是告诉 **TCP 协议应该把报文发给哪个进程**。
@@ -136,9 +136,9 @@ TCP 四元组可以唯一的确定一个连接，四元组包括如下：
 
 服务端通常固定在某个本地端口上监听，等待客户端的连接请求。因此，**客户端 IP 和端口是可变的**，其理论值计算公式如下：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/format,png-20230309230436594.png)
-{{% /details %}}
+
 对 IPv4，客户端的 IP 数最多为 `2` 的 `32` 次方，客户端的端口数最多为 `2` 的 `16` 次方，也就是服务端单机最大 TCP 连接数，约为 `2` 的 `48` 次方。
 
 当然，服务端最大并发 TCP 连接数远不能达到理论上限，会受以下因素影响：
@@ -169,9 +169,9 @@ UDP 不提供复杂的控制机制，利用 IP 提供面向「**无连接**」�
 
 UDP 协议非常简单，头部只有 `8` 个字节（64 位），UDP 的头部格式如下：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![UDP 头部格式](/images/cs/network/format,png-20230309230439961.png)
-{{% /details %}}
+
 - 目标和源端口：主要是告诉 UDP 协议应该把报文发给哪个进程。
 - 包长度：该字段保存了 UDP **首部的长度跟数据的长度之和**。
 - 校验和：校验和是为了提供**可靠**的 UDP 首部和数据而设计，**防止**收到在网络传输中**受损**的 UDP 包。
@@ -260,9 +260,9 @@ UDP 协议非常简单，头部只有 `8` 个字节（64 位），UDP 的头部�
 > 为什么 UDP 头部有「包长度」字段，而 TCP 头部则没有「包长度」字段呢？
 
 先说说 TCP 是如何计算负载数据长度：
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/format,png-20230309230445811.png)
-{{% /details %}}
+
 
 其中 **IP 总长度 和 IP 首部长度，在 IP 首部格式是已知的**。TCP 首部长度，则是在 TCP 首部格式已知的，所以就可以求得 TCP 数据的长度。
 
@@ -280,25 +280,25 @@ UDP 协议非常简单，头部只有 `8` 个字节（64 位），UDP 的头部�
 ### 三次握手
 
 TCP 是面向连接的协议，所以使用 TCP 前必须先建立连接，而**建立连接是通过三次握手来进行的**。三次握手的过程如下图：
-{{% details title="展开图片" closed="true" %}}
+
 ![TCP 三次握手](/images/cs/network/TCP三次握手.drawio.png)
-{{% /details %}}
+
 
 + 一开始，客户端和服务端都处于 `CLOSE` 状态。先是服务端主动监听某个端口，处于 `LISTEN` 状态
 
-{{% details title="展开图片" closed="true" %}}
+
 ![第一个报文 —— SYN 报文](/images/cs/network/format,png-20230309230500953.png)
-{{% /details %}}
+
 + 客户端会随机初始化序号（`client_isn`），将此序号置于 TCP 首部的「序号」字段中，同时把 `SYN` 标志位置为 `1`，表示 `SYN` 报文。接着把第一个 SYN 报文发送给服务端，表示向服务端发起连接，**该报文不包含应用层数据**，之后客户端处于 `SYN-SENT` 状态。
 
-{{% details title="展开图片" closed="true" %}}
+
 ![第二个报文 —— SYN + ACK 报文](/images/cs/network/format,png-20230309230504118.png)
-{{% /details %}}
+
 + 服务端收到客户端的 `SYN` 报文后，首先服务端也随机初始化自己的序号（`server_isn`），将此序号填入 TCP 首部的「序号」字段中，其次把 TCP 首部的「确认应答号」字段填入 `client_isn + 1`, 接着把 `SYN` 和 `ACK` 标志位置为 `1`。最后把该报文发给客户端，该**报文也不包含应用层数据**，之后服务端处于 `SYN-RCVD` 状态。
 
-{{% details title="展开图片" closed="true" %}}
+
 ![第三个报文 —— ACK 报文](/images/cs/network/format,png-20230309230508297.png)
-{{% /details %}}
+
 + 客户端收到服务端报文后，还要向服务端回应最后一个应答报文，首先该应答报文 TCP 首部 `ACK` 标志位置为 `1` ，其次「确认应答号」字段填入 `server_isn + 1` ，最后把报文发送给服务端，这次报文**可以携带客户到服务端的数据**，之后客户端处于 `ESTABLISHED` 状态。
 
 + 服务端收到客户端的应答报文后，也进入 `ESTABLISHED` 状态。
@@ -347,9 +347,9 @@ TCP 是面向连接的协议，所以使用 TCP 前必须先建立连接，而**
 > **简单来说就是旧的 SYN包在新的 SYN 包之前到达服务端** 。
 
 看看三次握手是如何阻止历史连接的：
-{{% details title="展开图片" closed="true" %}}
+
 ![三次握手避免历史连接](/images/cs/network/format,png-20230309230525514.png)
-{{% /details %}}
+
 
 客户端连续发送多次 SYN（**都是同一个四元组**）建立连接的报文，在**网络拥堵**情况下：
 
@@ -399,9 +399,9 @@ TCP 是面向连接的协议，所以使用 TCP 前必须先建立连接，而**
 我先直接说结论，主要是因为**在两次握手的情况下，服务端没有中间状态给客户端来阻止历史连接，导致服务端可能建立一个历史连接，造成资源浪费**。
 
 在两次握手的情况下，服务端在收到 SYN 报文后，就进入 ESTABLISHED 状态，意味着这时可以给对方发送数据，但是客户端此时还没有进入 ESTABLISHED 状态，假设这次是历史连接，**客户端判断到此次连接为历史连接，那么就会回 RST 报文来断开连接，而服务端在第一次握手的时候就进入 ESTABLISHED 状态**，**所以它可以发送数据的（比如一些服务是服务端 PUSH 数据的）**，但是它并不知道这个是历史连接，它只有在收到 RST 报文后，才会断开连接。
-{{% details title="展开图片" closed="true" %}}
+
 ![两次握手无法阻止历史连接](/images/cs/network/fe898053d2e93abac950b1637645943f.png)
-{{% /details %}}
+
 
 可以看到，如果采用两次握手建立 TCP 连接的场景下，服务端在向客户端发送数据前，并没有阻止掉历史连接，导致服务端建立了一个历史连接，又白白发送了数据，妥妥地浪费了服务端的资源。
 
@@ -425,9 +425,9 @@ TCP 协议的通信双方， 都必须维护一个「序列号」， 序列号�
 - 可以标识发送出去的数据包中， 哪些是已经被对方收到的（通过 ACK 报文中的序列号知道）；
 
 可见，序列号在 TCP 连接中占据着非常重要的作用，所以当客户端发送携带「初始序列号」的 `SYN` 报文的时候，需要服务端回一个 `ACK` 应答报文，表示客户端的 SYN 报文已被服务端成功接收，那当服务端发送「初始序列号」给客户端的时候，依然也要得到客户端的应答回应，**这样一来一回，才能确保双方的初始序列号能被可靠的同步。**
-{{% details title="展开图片" closed="true" %}}
+
 ![四次握手与三次握手](/images/cs/network/format,png-20230309230639121.png)
-{{% /details %}}
+
 
 四次握手其实也能够可靠的同步双方的初始化序号，但由于**第二步和第三步可以优化成一步**，所以就成了「三次握手」。
 
@@ -438,9 +438,9 @@ TCP 协议的通信双方， 都必须维护一个「序列号」， 序列号�
 如果只有「两次握手」，当客户端发生的 `SYN` 报文在网络中阻塞，客户端没有接收到 `ACK` 报文，就会重新发送 `SYN` ，**由于没有第三次握手，服务端不清楚客户端是否收到了自己回复的 `ACK` 报文，所以服务端每收到一个 `SYN` 就只能先主动建立一个连接**，这会造成什么情况呢？
 
 如果客户端发送的 `SYN` 报文在网络中阻塞了，重复发送多次 `SYN` 报文，那么服务端在收到请求后就会**建立多个冗余的无效链接，造成不必要的资源浪费。**
-{{% details title="展开图片" closed="true" %}}
+
 ![两次握手会造成资源浪费](/images/cs/network/format,png-20230309230636571.png)
-{{% /details %}}
+
 
 即两次握手会造成消息滞留情况下，服务端重复接受无用的连接请求 `SYN` 报文，而造成重复分配资源。
 
@@ -462,15 +462,15 @@ TCP 的连接状态查看，在 Linux 可以通过 `netstat -napt` 命令查看�
 >
 > 因此，`-napt` 实际上是 `-n`, `-a`, `-p`, `-t` 这几个选项的组合，用于显示数字地址的所有 TCP 连接及其相关进程信息，而不是某个特定术语的简写。
 
-{{% details title="展开图片" closed="true" %}}
+
 ![TCP 连接状态查看](/images/cs/network/format,png-20230309230520683.png)
-{{% /details %}}
+
 
 
 ## 既然 IP 层会分片，为什么 TCP 层还需要 MSS 呢？
-{{% details title="展开图片" closed="true" %}}
+
 ![MTU 与 MSS](/images/cs/network/format,png-20230309230633447.png)
-{{% /details %}}
+
 
 - `MTU`：一个网络包的**最大长度**，以太网中一般为 `1500` 字节；
 - `MSS`：除去 IP 和 TCP 头部之后，一个网络包所能容纳的 TCP 数据的**最大长度**；
@@ -491,9 +491,9 @@ TCP 的连接状态查看，在 Linux 可以通过 `netstat -napt` 命令查看�
 
 > IP 不用分片了，丢失这个 IP 包之后，只需要传这个 IP 包，这个 IP包可能就是 TCP 报文的一部分，只需要传一部分，上一中方式要传全部。假设 MSS = 100字节
 
-{{% details title="展开图片" closed="true" %}}
+
 ![握手阶段协商 MSS](/images/cs/network/format,png-20230309230628926.png)
-{{% /details %}}
+
 经过 TCP 层分片后，如果一个 TCP 分片丢失后，**进行重发时也是以 MSS 为单位**，而不用重传所有的分片，大大增加了重传的效率。
 
 ## 第一次握手丢失了会怎么样
@@ -539,9 +539,9 @@ cat /proc/sys/net/ipv4/tcp_syn_retries
 
 举个例子，假设 tcp_syn_retries 参数值为 3，那么当客户端的 SYN 报文一直在网络中丢失时，会发生下图的过程：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/第1次握手丢失.png)
-{{% /details %}}
+
 
 具体过程：
 
@@ -587,9 +587,9 @@ cat /proc/sys/net/ipv4/tcp_synack_retries
 - 服务端会重传 SYN-ACK 报文，也就是第二次握手，最大重传次数由 `tcp_synack_retries` 内核参数决定。
 
 举个例子，假设 tcp_syn_retries 参数值为 1，tcp_synack_retries 参数值为 2，那么当第二次握手一直丢失时，发生的过程如下图：
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/第2次握手丢失.png)
-{{% /details %}}
+
 
 具体过程：
 
@@ -629,9 +629,9 @@ cat /proc/sys/net/ipv4/tcp_synack_retries
 
 举个例子，假设 tcp_synack_retries 参数值为 2，那么当第三次握手一直丢失时，发生的过程如下图：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/第三次握手丢失.drawio.png)
-{{% /details %}}
+
 
 具体过程：
 
@@ -642,9 +642,9 @@ cat /proc/sys/net/ipv4/tcp_synack_retries
 ### 四次挥手
 
 **双方都可以主动断开连接**，断开连接后主机中的「资源」将被释放，四次挥手的过程如下图：
-{{% details title="展开图片" closed="true" %}}
+
 ![客户端主动关闭连接 —— TCP 四次挥手](/images/cs/network/format,png-20230309230614791.png)
-{{% /details %}}
+
 
 - 客户端打算关闭连接，此时会发送一个 TCP 首部 `FIN` 标志位被置为 `1` 的报文，也即 `FIN` 报文，之后客户端进入 `FIN_WAIT_1` 状态。
 - 服务端收到该报文后，就向客户端发送 `ACK` 应答报文，接着服务端进入 `CLOSE_WAIT` 状态。
@@ -693,9 +693,9 @@ cat /proc/sys/net/ipv4/tcp_synack_retries
 
 举个例子，假设 tcp_orphan_retries 参数值为 3，当第一次挥手一直丢失时，发生的过程如下图：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![第一次挥手丢失](/images/cs/network/第一次挥手丢失.png)
-{{% /details %}}
+
 具体过程：
 
 - 当客户端超时重传 3 次 FIN 报文后，由于 tcp_orphan_retries 为 3，已达到最大重传次数，于是再等待一段时间（时间为上一次超时时间的 2 倍），如果还是没能收到服务端的第二次挥手（ACK报文），那么客户端就会断开连接。
@@ -716,9 +716,9 @@ ACK 报文是不会重传的，第二次挥手丢失后，主动方会触发超�
 
 举个例子，假设 tcp_orphan_retries 参数值为 2，当第二次挥手一直丢失时，发生的过程如下图：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![第二次挥手丢失](/images/cs/network/第二次挥手丢失.png)
-{{% /details %}}
+
 具体过程：
 
 - 当客户端超时重传 2 次 FIN 报文后，由于 tcp_orphan_retries 为 2，已达到最大重传次数，于是再等待一段时间（时间为上一次超时时间的 2 倍），如果还是没能收到服务端的第二次挥手（ACK 报文），那么客户端就会断开连接。
@@ -763,9 +763,9 @@ ACK 报文是不会重传的，第二次挥手丢失后，主动方会触发超�
 
 这意味着对于调用 close 关闭的连接，如果在 60 秒后还没有收到 FIN 报文，客户端（主动关闭方）的连接就会直接关闭，如下图：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/fin_wait_2.drawio.png)
-{{% /details %}}
+
 但是注意，如果主动关闭方使用 shutdown 函数关闭连接，指定了只关闭发送方向，而接收方向并没有关闭，那么意味着主动关闭方还是可以接收数据的。
 
 > Q：shutdown 和 close 的区别
@@ -781,9 +781,9 @@ ACK 报文是不会重传的，第二次挥手丢失后，主动方会触发超�
 
 此时，如果**主动关闭方一直没收到第三次挥手，那么主动关闭方的连接将会一直处于 `FIN_WAIT2` 状态**（**`tcp_fin_timeout` 无法控制 shutdown 关闭的连接**）。如下图：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/fin_wait_2死等.drawio.png)
-{{% /details %}}
+
 ## 第三次挥手丢失了，会发生什么？
 
 ### 面试版
@@ -804,9 +804,9 @@ ACK 报文是不会重传的，第二次挥手丢失后，主动方会触发超�
 
 举个例子，假设 `tcp_orphan_retrie`s = 3，当第三次挥手一直丢失时，发生的过程如下图：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/第三次挥手丢失.drawio.png)
-{{% /details %}}
+
 具体过程：
 
 - 当服务端重传第三次挥手报文的次数达到了 3 次后，由于 tcp_orphan_retries 为 3，达到了重传最大次数，于是再等待一段时间（时间为上一次超时时间的 2 倍），如果还是没能收到客户端的第四次挥手（ACK报文），那么服务端就会断开连接。
@@ -832,9 +832,9 @@ ACK 报文是不会重传的，第二次挥手丢失后，主动方会触发超�
 
 举个例子，假设 tcp_orphan_retries 为 2，当第四次挥手一直丢失时，发生的过程如下：
 
-{{% details title="展开图片" closed="true" %}}
+
 ![img](/images/cs/network/第四次挥手丢失drawio.drawio.png)
-{{% /details %}}
+
 具体过程：
 
 - 当服务端重传第三次挥手报文达到 2 时，由于 tcp_orphan_retries 为 2， 达到了最大重传次数，于是再等待一段时间（时间为上一次超时时间的 2 倍），如果还是没能收到客户端的第四次挥手（ACK 报文），那么服务端就会断开连接。
