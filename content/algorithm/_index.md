@@ -15,3 +15,4 @@ date = 2024-06-24T22:39:58+08:00
 + [散列表](/algorithm/hashtable)
 + [二叉树基础](/algorithm/binarytree)
 + [红黑树](/algorithm/redblacktree)
++ [递归树](/algorithm/recursivetree)
