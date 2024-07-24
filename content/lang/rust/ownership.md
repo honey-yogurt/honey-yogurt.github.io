@@ -204,9 +204,7 @@ fn main() {
 
 如果你在其他语言中听说过术语 浅拷贝(shallow copy) 和 深拷贝(deep copy)，那么拷贝指针、长度和容量而不拷贝数据听起来就像浅拷贝，但是又因为 Rust 同时使第一个变量 s1 无效了，因此这个操作被称为 **移动(move)**，而不是浅拷贝。上面的例子可以解读为 s1 被移动到了 s2 中。
 
-{{% details title="展开图片" closed="true" %}}
 ![img.png](/images/lang/rust/ownership-1.png)
-{{% /details %}}
 
 ## 所有权不会转移的情况
 + clone：即克隆数据（即深拷贝）
