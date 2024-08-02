@@ -7,4 +7,9 @@ draft: false
 目录：
 + [字面量和组合字面量](/lang/go/literal)
 + [数组](/lang/go/array)
-+ [容器（array & slice & map）](/lang/go/container)
++ [切片](/lang/go/slice)
++ [映射](lang/go/map)
++ [容器类型总结](/lang/go/container)
++ [通道](/lang/go/channel)
++ [原子操作](/lang/go/atomic)
++ [Cgo](/lang/go/cgo)
