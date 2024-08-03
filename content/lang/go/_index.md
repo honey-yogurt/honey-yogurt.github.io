@@ -10,6 +10,7 @@ draft: false
 + [切片](/lang/go/slice)
 + [映射](lang/go/map)
 + [容器类型总结](/lang/go/container)
++ [接口](/lang/go/interface)
 + [通道](/lang/go/channel)
 + [原子操作](/lang/go/atomic)
 + [Cgo](/lang/go/cgo)
