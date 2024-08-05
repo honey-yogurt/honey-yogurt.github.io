@@ -14,7 +14,7 @@ draft: false
 + [反射](/lang/go/reflect)
 + [通道](/lang/go/channel)
 + sync
-  + [Pool](/lang/go/Pool)
+  + [Pool](/lang/go/pool)
   + [Mutex](/lang/go/mutex)
   + [RWMutex](/lang/go/rwmutex)
   + [Once](/lang/go/once)
