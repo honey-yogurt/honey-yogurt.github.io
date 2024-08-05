@@ -94,11 +94,11 @@ func (wg *WaitGroup) state() (statep *uint64, semap *uint32) {
 
 在 64 位环境下，state1 的第一个元素是 waiter 数，第二个元素是 WaitGroup 的计数值，第三个元素是信号量。
 
-![image-20240805173206024](../../../static/images/lang/go/waitgroup-1.png/images/lang/go/waitgroup-1.png)
+![image-20240805173206024](/images/lang/go/waitgroup-1.png)
 
 在 32 位环境下，如果 state1 不是 64 位对齐的地址，那么 state1 的第一个元素是信号量，后两个元素分别是 waiter 数和计数值。
 
-![image-20240805173324041](../../../static/images/lang/go/waitgroup-2.png/images/lang/go/waitgroup-2.png)
+![image-20240805173324041](/images/lang/go/waitgroup-2.png)
 
 > 首先要理解的是**内存对齐**，32 位机和 64 位机的差别在于每次读取的块大小不同，前者一次读取 4 字节的块，后者一次读取 8 字节的块。
 >
