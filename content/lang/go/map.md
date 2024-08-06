@@ -84,6 +84,33 @@ m["name"] = "yogurt" // panic
 不同于切片的nil， 初值为 nil 的 map 无法“零值可用“。必须对 map 类型变量进行显式初始化后才能使用。
 
 **一个映射类型的键值类型必须为一个可比较类型**。一个映射值类型的容器值中的元素关联的键值可以是任何此映射类型的**键值类型的任何值**。
+
+这里有一点需要注意，如果使用 struct 类型做 key 其实是有坑的，因为**如果 struct 的某个字段值修改了，查询 map 时无法获取它 add 进去的值**，如下面的例子：
+
+```go
+type mapKey struct {
+    key int
+}
+
+func main() {
+    var m = make(map[mapKey]string)
+    var key = mapKey{10}
+
+
+    m[key] = "hello"
+    fmt.Printf("m[key]=%s\n", m[key])
+
+
+    // 修改key的字段的值后再次查询map，无法获取刚才add进去的值
+    key.key = 100
+    fmt.Printf("再次查询m[key]=%s\n", m[key])
+}
+```
+
+如果要使用 struct 作为 key，我们要保证 struct 对象在**逻辑上是不可变的**，这样才会保证 map 的逻辑没有问题。
+
+**map 是无序的，所以当遍历一个 map 对象的时候，迭代的元素的顺序是不确定的，无法保证两次遍历的顺序是一样的，也不能保证和插入的顺序一致**。
+
 ### 复合字面值
 ```go
 m := map[int]string{}
