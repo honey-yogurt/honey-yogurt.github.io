@@ -15,7 +15,7 @@ date = 2024-08-06T20:58:28+08:00
 
 类型参数列表看起来像普通的参数列表，只不过它使用方括号（`[]`）而不是圆括号（`()`）。
 
-![类型形参与类型实参](../../../static/images/lang/go/generics-1.pngc/images/lang/go/generics-1.png)
+![类型形参与类型实参](/images/lang/go/generics-1.png)
 
 Go 语言规范规定：**函数的类型参数列表位于函数名与函数参数列表之间，由方括号括起的固定个数的、由逗号分隔的类型参数声明组成**，其一般形式如下：
 
@@ -45,7 +45,7 @@ func print[T1 any, T1 comparable](sl []T) { //  编译错误：T1 redeclared in 
 
 常规参数列表中的参数有其特定作用域，即从参数声明处开始到函数体结束。和常规参数类似，泛型函数中类型参数也有其作用域范围，这个范围从类型参数列表左侧的方括号[开始，一直持续到函数体结束，如下图所示：
 
-![作用域](../../../static/images/lang/go/generics-2.pngc/images/lang/go/generics-2.png)
+![作用域](/images/lang/go/generics-2.png)
 
 类型参数的作用域也决定了类型参数的声明顺序并不重要，也不会影响泛型函数的行为。
 
@@ -82,7 +82,7 @@ maxGenerics([]int{1, 2, -4, -6, 7, 0})
 
 上面代码是对 maxGenerics 泛型函数的一次调用，Go 对这段泛型函数调用代码的处理分为两个阶段，如下图所示：
 
-![泛型调用](../../../static/images/lang/go/generics-3.pngc/images/lang/go/generics-3.png)
+![泛型调用](/images/lang/go/generics-3.png)
 
 Go 首先会对泛型函数进行**实例化**（instantiation），即根据自动推断出的类型实参生成一个新函数（当然这一过程是在**编译阶段**完成的，不会对运行时性能产生影响），然后才会调用这个新函数对输入的函数参数进行处理。
 
@@ -126,7 +126,7 @@ type TypeName[T1 constraint1, T2 constraint2, ..., Tn constraintN] TypeLiteral
 
 泛型类型中类型参数的作用域范围也是从类型参数列表左侧的方括号[开始，一直持续到类型定义结束的位置。
 
-![泛型类型作用域](../../../static/images/lang/go/generics-4.pngc/images/lang/go/generics-4.png)
+![泛型类型作用域](/images/lang/go/generics-4.png)
 
 这样的作用域将方便我们在各个字段中灵活使用类型参数，下面是一些自定义泛型类型的示例：
 
@@ -329,7 +329,7 @@ Go 团队的泛型实现者们也考虑了这个问题，并给出了解决方�
 
 顾名思义，这个机制就是通过判断传递的函数实参的类型来推断出类型实参的类型，从而允许开发者不必显式提供类型实参，下面是以 maxGenerics 函数为例的类型实参推断过程示意图：
 
-![函数类型推断](../../../static/images/lang/go/generics-5.pngc/images/lang/go/generics-5.png)
+![函数类型推断](/images/lang/go/generics-5.png)
 
 **函数类型实参类型推断只适用于函数参数中使用的类型参数，而不适用于仅在函数结果中或仅在函数体中使用的类型参数。**
 
@@ -457,7 +457,7 @@ type IntPtrSlice[T interface{ *int }] []T // 使用interface{}包裹
 
 **也就是说，接口类型现在可以用作值的类型，也可以用作类型约束。**
 
-![type set](../../../static/images/lang/go/generics-6.pngc/images/lang/go/generics-6.png)
+![type set](/images/lang/go/generics-6.png)
 
 把接口类型当做类型集相较于方法集有一个优势: 我们可以显式地向集合添加类型，从而以新的方式控制类型集。
 
@@ -471,7 +471,7 @@ type V interface {
 
 上面的代码就定义了一个包含 `int`、 `string` 和 `bool` 类型的类型集。
 
-![type set](../../../static/images/lang/go/generics-7.pngc/images/lang/go/generics-7.png)
+![type set](/images/lang/go/generics-7.png)
 
 **从 Go 1.18 开始，一个接口不仅可以嵌入其他接口，还可以嵌入任何类型、类型的联合或共享相同底层类型的无限类型集合。**
 
