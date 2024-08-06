@@ -3,6 +3,8 @@ title = 'for range'
 date = 2024-04-26T21:08:38+08:00
 +++
 
+## 遍历容器
+
 ```go
 for key, element = range aContainer {
 	// 使用key和element ...
@@ -223,3 +225,78 @@ func main() {
 // go1.22
 6
 ```
+
+
+
+## 遍历字符串中的码点
+
+`for-range`循环控制中的`range`关键字后可以跟随一个字符串，用来遍历此字符串中的码点（而非字节元素）。 字符串中非法的UTF-8编码字节序列将被解读为Unicode替换码点值`0xFFFD`。
+
+```go\
+package main
+
+import "fmt"
+
+func main() {
+	s := "éक्षिaπ囧"
+	for i, rn := range s {
+		fmt.Printf("%2v: 0x%x %v \n", i, rn, string(rn))
+	}
+	fmt.Println(len(s))
+}
+```
+
+```go
+ 0: 0x65 e
+ 1: 0x301 ́
+ 3: 0x915 क
+ 6: 0x94d ्
+ 9: 0x937 ष
+12: 0x93f ि
+15: 0x61 a
+16: 0x3c0 π
+18: 0x56e7 囧
+21
+```
+
+从此输出结果可以看出：
+
+1. 下标循环变量的值并非连续。原因是下标循环变量为字符串中字节的下标，而一个码点可能需要多个字节进行UTF-8编码。
+2. 第一个字符`é`由两个码点（共三字节）组成，其中一个码点需要两个字节进行UTF-8编码。
+3. 第二个字符`क्षि`由四个码点（共12字节）组成，每个码点需要三个字节进行UTF-8编码。
+4. 英语字符`a`由一个码点组成，此码点只需一个字节进行UTF-8编码。
+5. 字符`π`由一个码点组成，此码点只需两个字节进行UTF-8编码。
+6. 汉字`囧`由一个码点组成，此码点只需三个字节进行UTF-8编码。
+
+那么如何遍历一个字符串中的字节呢？使用传统`for`循环：
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	s := "éक्षिaπ囧"
+	for i := 0; i < len(s); i++ {
+		fmt.Printf("第%v个字节为0x%x\n", i, s[i])
+	}
+}
+```
+
+当然，我们也可以利用前面介绍的编译器优化来使用`for-range`循环遍历一个字符串中的字节元素。 对于官方标准编译器来说，此方法比刚展示的方法效率更高。
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	s := "éक्षिaπ囧"
+	// 这里，[]byte(s)不需要深复制底层字节。
+	for i, b := range []byte(s) {
+		fmt.Printf("The byte at index %v: 0x%x \n", i, b)
+	}
+}
+```
+
+从上面几个例子可以看出，`len(s)`将返回字符串`s`中的字节数。 `len(s)`的时间复杂度为`*O*(1)`。 如何得到一个字符串中的码点数呢？使用刚介绍的`for-range`循环来统计一个字符串中的码点数是一种方法，使用`unicode/utf8`标准库包中的[RuneCountInString](https://golang.google.cn/pkg/unicode/utf8/#RuneCountInString)是另一种方法。 这两种方法的效率基本一致。第三种方法为使用`len([]rune(s）)`来获取字符串`s`中码点数。标准编译器从1.11版本开始，对此表达式做了优化以避免一个不必要的深复制，从而使得它的效率和前两种方法一致。 注意，这三种方法的时间复杂度均为`*O*(n)`。
