@@ -8,6 +8,7 @@ date = 2024-08-06T20:50:18+08:00
 我们先看看在[《Go 语言编程规范》](https://go.dev/ref/spec#Types)是怎么定义类型的。
 
 > A type determines a set of values together with operations and methods specific to those values. A type may be denoted by a type name, if it has one, which must be followed by type arguments if the type is generic. A type may also be specified using a type literal, which composes a type from existing types.
+>
 > 一种类型确定了一组值，以及与这些值特定的操作和方法。如果一个类型有名称，则可以用类型名称表示该类型，并且必须在后面跟上类型参数（如果该类型是泛型）。还可以使用类型字面量来指定一个类型，它由现有的类型组成。
 >
 > The language [predeclares](https://go.dev/ref/spec#Predeclared_identifiers) certain type names. Others are introduced with [type declarations](https://go.dev/ref/spec#Type_declarations) or [type parameter lists](https://go.dev/ref/spec#Type_parameter_declarations). *Composite types*—array, struct, pointer, function, interface, slice, map, and channel types—may be constructed using type literals.
@@ -26,13 +27,11 @@ date = 2024-08-06T20:50:18+08:00
 
 + Predeclared types：内置类型
 
-+ Defined types: 定义类型—用 type 关键字定义的类型（定义的泛型类型需要是实例化类型）
++ Defined types: 定义类型——用 type 关键字定义的类型（定义的泛型类型需要是实例化类型）
 
 + Type parameters：一个类型参数类型（使用在自定义泛型中）
 
 + Alias：别名的源类型是具名类型，该别名也是一个具名类型。
-
-> TODO: 补充泛型代码
 
 **Unamed type**：其它类型称为无名类型。一个无名类型肯定是一个组合类型（反之则未必）。
 
@@ -67,9 +66,10 @@ type inventory2 map[string]int
 func (i inventory2) f() {
 
 }
+
 ```
 
-Named types 可以作为方法的接受者， unnamed type 却不能。
+**Named types 可以作为方法的接受者**， unnamed type 却不能。
 
 ```go
 // Map 是一个具名类型，但是 map[string]string 是一个无名类型
@@ -105,15 +105,15 @@ func (m Map) SetVale(key,value string) {
 
 Go支持下列组合类型：
 
-- [指针类型](https://gfw.go101.org/article/pointer.html) - 类C指针
-- [结构体类型](https://gfw.go101.org/article/struct.html) - 类C结构体
-- [函数类型](https://gfw.go101.org/article/function.html) - 函数类型在Go中是一种一等公民类别
-- [容器类型](https://gfw.go101.org/article/container.html)，包括:
+- 指针类型 （*T）- 类C指针
+- 结构体类型 - 类C结构体
+- 函数类型 - 函数类型在Go中是一种一等公民类别
+- 容器类型，包括:
   - 数组类型 - 定长容器类型
   - 切片类型 - 动态长度和容量容器类型
   - 映射类型（map）- 也常称为字典类型。在标准编译器中映射是使用哈希表实现的。
-- [通道类型](https://gfw.go101.org/article/channel.html) - 通道用来同步并发的协程
-- [接口类型](https://gfw.go101.org/article/interface.html) - 接口在反射和多态中发挥着重要角色
+- 通道类型 - 通道用来同步并发的协程
+- 接口类型 - 接口在反射和多态中发挥着重要角色
 
 无名组合类型可以用它们各自的字面表示形式来表示。 下面是一些各种不同种类的无名组合类型字面表示形式的例子：
 
@@ -201,7 +201,7 @@ type Ages AgeSlice
 
 - 一个新定义的类型和它的源类型为**两个不同的类型**。
 - 在两个不同的类型定义中所定义的两个类型肯定是两个不同的类型。
-- 一个新定义的类型和它的源类型的底层类型（将在下面介绍）一致并且它们的值可以相互显式转换。
+- 一个新定义的类型和它的源类型的底层类型一致并且它们的值可以**相互显式转换**。
 - 类型定义可以出现在函数体内。
 
 一些类型定义的例子：
