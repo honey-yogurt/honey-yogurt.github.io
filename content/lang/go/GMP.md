@@ -1,0 +1,411 @@
++++
+title = 'gmp'
+date = 2024-05-16T09:19:53+08:00
++++
+
+## GMP 设计
+## goroutine lifecycle
+![img.png](/images/lang/go/gmp-14.png)
+整个程序始于一段汇编， 而在随后的 `runtime·rt0_go`（也是汇编程序）中，会执行很多初始化工作。
+
++ 绑定 m0 和 g0，m0就是程序的主线程，程序启动必然会拥有一个主线程，这个就是 m0。g0 负责调度，即 shedule() 函数。
++ 创建 P，绑定 m0 和 p0，首先会创建 GOMAXPROCS 个 P ，存储在 sched 的 空闲链表(pidle)。
++ 新建任务 g 到 p0 本地队列，m0 的 g0 会创建一个 指向 `runtime.main()` 的 g ，并放到 p0 的本地队列。
+
+`runtime.main()`: 启动 sysmon 线程；启动 GC 协程；执行 init，即代码中的各种 init 函数；执行 `main.main` 函数。
+
+> 通过 m0 p0 创建多个P，然后推一个 `runtime.main` 函数的一个 g 到p0，执行 g0，
+
+执行`main.main` ，`main` 函数可能会创建多个 `go func` ，这时候会触发 Wakeup 唤醒机制：有空闲的 P 而没有在 spinning 状态的 M 时候, 需要去唤醒一个空闲(睡眠)的 M 或者新建一个。当线程首次创建时，会执行一个特殊的 G，即 g0，它负责管理和调度 G。
+
+### g0
+![img.png](/images/lang/go/gmp-15.png)
+Go 基于两种断点将 G 调度到线程上：
+
++ 当 G 阻塞时：系统调用、互斥锁或 chan。阻塞的 G 进入睡眠模式/进入队列，并允许 Go 安排和运行等待其他的 G。
++ 在函数调用期间，如果 G 必须扩展其堆栈。这个断点允许 Go 调度另一个 G 并避免运行 G 占用 CPU。
+
+在这两种情况下，运行调度程序的 g0 将当前 G 替换为另一个 G，即 ready to run。然后，选择的 G 替换 g0 并在线程上运行。与常规 G 相反，g0 有一个固定和更大的栈。
+
++ Defer 函数的分配
++ GC 收集，比如 STW、扫描 G 的堆栈和标记、清除操作
++ 栈扩容，当需要的时候，由 g0 进行扩栈操作
+
+在 Go 中，G 的切换相当轻便，其中需要保存的状态仅仅涉及以下两个：
+
++ Goroutine 在停止运行前执行的指令，程序当前要运行的指令是记录在程序计数器（PC）中的， G 稍后将在同一指令处恢复运行；
++ G 的堆栈，以便在再次运行时还原局部变量；
+
+![img.png](/images/lang/go/gmp-16.png)
+从 g 到 g0 或从 g0 到 g 的切换是相当迅速的，它们只包含少量固定的指令。相反，对于调度阶段，调度程序需要检查许多资源以便确定下一个要运行的 G。
+
++ 当前 g 阻塞在 chan 上并切换到 g0：
+  1. PC 和堆栈指针一起保存在内部结构中；
+  2. 将 g0 设置为正在运行的 goroutine；
+  3. g0 的堆栈替换当前堆栈；
++ g0 寻找新的 Goroutine 来运行
++ g0 使用所选的 Goroutine 进行切换： 
+  1. PC 和堆栈指针是从其内部结构中获取的；
+  2. 程序跳转到对应的 PC 地址；
+
+![img.png](/images/lang/go/gmp-17.png)
+
+为了更好地分发空闲的 G ，调度器也有自己的列表。它实际上有两个列表：一个包含已分配栈的 G，另一个包含释放过堆栈的 G（无栈）。
+
+锁保护 central list，因为任何 M 都可以访问它。当本地列表长度超过64时，调度程序持有的列表从 P 获取 G。然后一半的 G 将移动到中心列表。需求回收 G 是一种节省分配成本的好方法。但是，由于堆栈是动态增长的，现有的G 最终可能会有一个大栈。因此，当堆栈增长（即超过2K）时，Go 不会保留这些栈。
+> Q: 不是说256吗？怎么现在又是64？
+
+## m 工作机制
+在 runtime 中有三种线程，一种是主线程，一种是用来跑 sysmon 的线程，一种是普通的用户线程。主线程在 runtime 由对应的全局变量: runtime.m0 来表示。用户线程就是普通的线程了，和 p 绑定，执行 g 中的任务。虽然说是有三种，实际上前两种线程整个 runtime 就只有一个实例。用户线程才会有很多实例。
+
+### 主线程 m0
+主线程中用来跑 runtime.main，流程线性执行，没有跳转:
+```mermaid
+graph TD
+runtime.main --> A[init max stack size]
+A --> B[systemstack execute -> newm -> sysmon]
+B --> runtime.lockOsThread
+runtime.lockOsThread --> runtime.init
+runtime.init --> runtime.gcenable
+runtime.gcenable --> main.init
+main.init --> main.main
+```
+
+## GMP 数据结构
+### goroutine
+goroutine 的内部数据结构可以在 `runtime.runtime2.go` 文件中
+```go
+// stack 描述的是 Go 的执行栈，下界和上界分别为 [lo, hi]
+// 如果从传统内存布局的角度来讲，Go 的栈实际上是分配在 C 语言中的堆区的
+// 所以才能比 ulimit -s 的 stack size 还要大(1GB)
+type stack struct {
+    lo uintptr
+    hi uintptr
+}
+// g 的运行现场
+type gobuf struct {
+    sp   uintptr    // sp 寄存器
+    pc   uintptr    // pc 寄存器
+    g    guintptr   // g 指针
+    ctxt unsafe.Pointer // 这个似乎是用来辅助 gc 的
+    ret  sys.Uintreg
+    lr   uintptr    // 这是在 arm 上用的寄存器，不用关心
+    bp   uintptr    // 开启 GOEXPERIMENT=framepointer，才会有这个
+}
+type g struct {
+    // 简单数据结构，lo 和 hi 成员描述了栈的下界和上界内存地址
+    stack       stack
+	// 在函数的栈增长 prologue 中用 sp 寄存器和 stackguard0 来做比较
+	// 如果 sp 比 stackguard0 小(因为栈向低地址方向增长)，那么就触发栈拷贝和调度
+	// 正常情况下 stackguard0 = stack.lo + StackGuard
+	// 不过 stackguard0 在需要进行调度时，会被修改为 StackPreempt
+	// 以触发抢占s
+	stackguard0 uintptr
+	// stackguard1 是在 C 栈增长 prologue 作对比的对象
+	// 在 g0 和 gsignal 栈上，其值为 stack.lo+StackGuard
+	// 在其它的栈上这个值是 ~0(按 0 取反)以触发 morestack 调用(并 crash)
+	stackguard1 uintptr
+	m              *m             // 当前与 g 绑定的 m
+    sched          gobuf          // goroutine 的现场
+    goid         uint64 // Goroutine的唯一标识符。
+    param          unsafe.Pointer // wakeup 时的传入参数
+    atomicstatus atomic.Uint32 // Goroutine状态的原子化版本，如运行、阻塞等，用于并发访问。
+	preempt        bool     // 抢占标记，这个为 true 时，stackguard0 是等于 stackpreempt 的
+    lockedm        muintptr // 如果调用了 LockOsThread，那么这个 g 会绑定到某个 m 上
+    gopc           uintptr // 创建该 goroutine 的语句的指令地址
+    startpc        uintptr // goroutine 函数的指令地址
+	selectDone     uint32         // 该 g 是否正在参与 select，是否已经有人从 select 中胜出
+}
+```
+此外，Goroutine的内部数据结构还包含其他一些字段，用于管理调度、垃圾回收等。这些字段的具体细节可能会因Golang版本和运行时实现而有所不同。
+
+当 g 遇到阻塞，或需要等待的场景时，会被打包成 sudog 这样一个结构。一个 g 可能被打包为多个 sudog 分别挂在不同的等待队列上:
+```go
+// sudog 代表在等待列表里的 g，比如向 channel 发送/接收内容时
+// 之所以需要 sudog 是因为 g 和同步对象之间的关系是多对多的
+// 一个 g 可能会在多个等待队列中，所以一个 g 可能被打包为多个 sudog
+// 多个 g 也可以等待在同一个同步对象上
+// 因此对于一个同步对象就会有很多 sudog 了
+// sudog 是从一个特殊的池中进行分配的。用 acquireSudog 和 releaseSudog 来分配和释放 sudog
+type sudog struct {
+
+    // 之后的这些字段都是被该 g 所挂在的 channel 中的 hchan.lock 来保护的
+    // shrinkstack depends on
+    // this for sudogs involved in channel ops.
+    g *g
+
+    // isSelect 表示一个 g 是否正在参与 select 操作
+    // 所以 g.selectDone 必须用 CAS 来操作，以胜出唤醒的竞争
+    isSelect bool
+    next     *sudog
+    prev     *sudog
+    elem     unsafe.Pointer // data element (may point to stack)
+
+    // 下面这些字段则永远都不会被并发访问
+    // 对于 channel 来说，waitlink 只会被 g 访问
+    // 对于信号量来说，所有的字段，包括上面的那些字段都只在持有 semaRoot 锁时才可以访问
+    acquiretime int64
+    releasetime int64
+    ticket      uint32
+    parent      *sudog // semaRoot binary tree
+    waitlink    *sudog // g.waiting list or semaRoot
+    waittail    *sudog // semaRoot
+    c           *hchan // channel
+}
+```
+
+
+
+## --------------分割线-------------
+
+
+
+
+
+## 进程、线程、协程（Goroutine）
+
+在仅支持进程的操作系统中，进程是拥有资源和独立调度的基本单位。在引入线程的操作系统中，**线程是独立调度的基本单位，进程是资源拥有的基本单位**。在同一进程中，线程的切换不会引起进程切换。在不同进程中进行线程切换,如从一个进程内的线程切换到另一个进程中的线程时，会引起进程切换。
+
+即操作系统内核最小的调度单元是内核级线程。
+
+多进程、多线程已经提高了系统的并发能力，但是在当今互联网高并发场景下，为每个任务都创建一个线程是不现实的，因为会消耗大量的内存(进程虚拟内存会占用4GB[32位操作系统], 而线程也要大约4MB)。
+
+大量的进程/线程出现了新的问题
+
++ 高内存占用 
++ 调度的高消耗CPU
+
+**用户级线程即协程，由应用程序创建与管理，协程必须与内核级线程绑定之后才能执行**。**线程由 CPU 调度是抢占式的，协程由用户态调度是协作式的**，一个协程让出 CPU 后，才执行下一个协程。
+
+> 可以把多个协程当做是多个并发的“业务”，它不受操作系统（cpu）调度，CPU并不知道有“用户态线程”的存在，它只知道它运行的是一个“内核态线程”(Linux的PCB进程控制块)。应用程序负责把并发的“业务”绑定到线程（内核级）中，由CPU调用线程从而执行这些并发的“业务”。
+
+![img.png](/images/lang/go/gmp-1.png)
+
+既然一个协程(co-routine)可以绑定一个线程(thread)，那么能不能多个协程(co-routine)绑定一个或者多个线程(thread)上呢。
+
+于是，就有了三种协程和线程的映射关系：
+
+### N:1
+
+N个协程绑定1个线程，优点就是**协程在用户态线程即完成切换，不会陷入到内核态，这种切换非常的轻量快速**。但也有很大的缺点，1个进程的所有协程都绑定在1个线程上。
+
+缺点：
+
++ 某个程序用不了硬件的多核加速能力 
++ 一旦某协程阻塞，造成线程阻塞，本进程的其他协程都无法执行了，根本就没有并发的能力了。
+
+![img.png](/images/lang/go/gmp-2.png)
+
+### 1:1
+
+1个协程绑定1个线程，这种最容易实现。协程的调度都由CPU完成了，不存在N:1缺点。
+
+缺点：
+
++ 协程的创建、删除和切换的代价都由CPU完成，有点略显昂贵了。
+
+![img.png](/images/lang/go/gmp-3.png)
+
+### M:N
+
+M个协程绑定N个线程，是N:1和1:1类型的结合，克服了以上2种模型的缺点，但实现起来最为复杂。
+
+![img.png](/images/lang/go/gmp-4.png)
+
+## 什么是 Goroutine
+
+Goroutine = Golang + Coroutine。**Goroutine是golang实现的协程，是用户级线程**。
+
+**Goroutines 是在同一个用户地址空间里并行独立执行 functions（Go 函数或方法）**，一个运行的程序由一个或更多个 goroutine 组成。channels 则用于 goroutines 间的通信和同步访问控制。
+
+Goroutine 拥有运行函数的指针、栈、上下文（指的是sp、bp、pc等寄存器上下文以及垃圾回收的标记上下文）。
+
+goroutine 和 thread 的区别？
+
++ 内存占用：创建一个goroutine的栈内存消耗为2KB，可自动扩容。创建一个 thread 分配一个较大的栈内存（1-8MB），另外线程和线程之间还需要一个被称为 `guard page`（防止线程栈溢出污染临近的栈）的区域进行隔离，栈内存空间一旦创建和初始化完成后其大小不能变化，存在栈溢出风险。
+  ![img.png](/images/lang/go/gmp-5.png)
++ 创建/销毁：线程创建和销毁都会有巨大的消耗，是内核级的交互（trap）。goroutine 是用户态线程，是由 `go runtime` 管理，创建和销毁的消耗非常小。
++ 调度切换：抛开陷入内核，线程切换会消耗1000-1500纳秒(上下文保存成本高，较多寄存器，公平性，复杂时间计算统计)，一个纳秒平均可以执行 12-18 条指令。所以由于线程切换，执行指令的条数会减少 12000-18000。goroutine 的切换约为 200 ns(用户态、3个寄存器)，相当于 2400-3600 条指令。因此，goroutines 切换成本比 threads 要小得多。
++ 复杂性：线程的创建和退出复杂，多个 thread 间通讯复杂(share memory)。不能大量创建线程(参考早期的 httpd)，成本高，使用网络多路复用，存在大量callback(参考twemproxy、nginx 的代码)。对于应用服务线程门槛高，例如需要做第三方库隔离，需要考虑引入线程池等。
+
+
+
+## GMP 概念
+
+内核线程(M)，goroutine(G)，G的上下文环境（P）。
+
++ G：goroutine协程，每次 go func() 都代表一个 G，使用的是 `runtime.g` 结构体
++ M：工作线程（OS thread，操作系统线程的一个封装）也被称为 Machine，使用 `runtime.m` 结构体，所有 M 是有线程栈的。如果不对该线程栈提供内存的话，系统会给该线程栈提供内存(不同操作系统提供的线程栈大小不同)。当指定了线程栈，则 M.stack→G.stack，M 的 PC 寄存器指向 G 提供的函数，然后去执行。
++ P：processor处理器，是一个抽象的概念，并不是真正的物理 CPU。使用的是 `runtime.p`。 它代表了 **M 所需的上下文环境**，也是处理用户级代码逻辑的处理器。它负责衔接 M 和 G 的调度上下文，将等待执行的 G 与 M 对接。**当 P 有任务时需要创建或者唤醒一个 M 来执行它队列里的任务。所以 P/M 需要进行绑定**，构成一个执行单元。P 决定了并行任务的数量，可通过 runtime.GOMAXPROCS 来设定。在 Go1.5 之后GOMAXPROCS 被默认设置可用的核数。**它维护一个局部可运行的 G 的队列（max=256），可以通过 CAS 的方式无锁访问**。
+
+## GM 模型
+
+Go 创建 M 个线程(CPU 执行调度的单元，内核的 task_struct)，之后创建的 N 个 goroutine 都会依附在这 M 个线程上执行，即 M:N 模型。它们能够同时运行，与线程类似，但相比之下非常轻量。因此，程序运行时，Goroutines 的个数应该是**远大于**线程的个数的。
+
+同一个时刻，一个线程只能跑一个 goroutine。当 goroutine 发生阻塞 (chan 阻塞、mutex等等) 时，Go 会把当前的 goroutine 调度走，让其他 goroutine 来继续执行，**而不是让线程阻塞休眠（线程不会阻塞，一直忙碌，减少线程调度的开销）**，尽可能多的分发任务出去，让 CPU 忙。
+
+![img](/images/lang/go/gmp_18.jpg)
+
+但是 GM 模型也有一些明显的缺点：
+
++ 全局锁和中心化状态带来锁竞争（所有的M都去全局的G队列竞争G），导致性能下降 ：*所有 goroutine 相关操作，比如：创建、结束、重新调度等都要上锁。*
++ 每个 M 都能执行任意可执行状态的 G，M 频繁地和 G 交接，导致额外开销 ：*刚创建的* *G* *放到了全局队列，而不是本地* *M* *执行，不必要的开销和延迟*
++ 每个 M 都需要处理内存缓存，导致大量内存占用，并影响数据局部性 ：*每个* *M* *持有* *mcache* *和* *stackalloc**，然而只有在* *M* *运行* *Go* *代码时才需要使用的内存(每个* *mcache* *可以高达**2mb**)，当* *M* *在处于* *syscall* *时并不需要。运行* *Go* *代码和阻塞在* *syscall* *的* *M* *的比例高达**1:100**，造成了很大的浪费。同时内存亲缘性也较差，G 当前在 M 运行后对 M 的内存进行了预热，因为现在 G 调度到同一个 M 的概率不高，数据局部性不好。*
++ 系统调用频繁阻塞和解除阻塞线程，增加了额外开销：*在系统调用的情况下，工作线程经常被阻塞和取消阻塞**，**这增加了很多开销**。比如 M 找不到G，此时 M 就会进入频繁阻塞/唤醒来进行检查的逻辑，以便及时发现新的 G 来执行。*
+
+## GMP 模型
+
+### 整体调度流程
+
+![img](/images/lang/go/gmp_19.jpg)
+
++ global queue: 全局队列，存放等待运行的 g
++ local queue: P 的本地队列，存放等待运行的 g，数量有限，不超过 256 个。新建 g 时候， **g 优先加入 p 的本地队列**。如果队列满了（超过256个），则会把本地队列中一半的 g 移动到全局队列。
++ P 列表： **所有的 P 都是在程序启动时创建**，可通过 runtime.GOMAXPROCS 来设定。
++ M ：内核线程，M的数量会多于P，但不会太多。
+
+**Goroutine调度器和OS调度器是通过M结合起来的，每个M都代表了1个内核线程，OS调度器负责把内核线程分配到CPU的核上执行**。
+
+GMP模型大致调用流程如下：
+
++ 线程M想运行任务就需得获取 P，即与P关联绑定。
++ 然从 P 的本地队列获取 G
++ 若P的本地队列中没有可运行的G，M 会尝试从全局队列拿一批G放到P的本地队列，若全局队列也未找到可运行的G时候，M会随机从其他 P 的本地队列**偷一半**放到自己 P 的本地队列。
++ 拿到可运行的G之后，M 运行 G，G 执行之后，M 会从 P 获取下一个 G，不断重复下去。
+
+![img](/images/lang/go/gmp_20.jpeg)
+
+### 设计理念
+
+#### P 的引入
+
+引入了 local queue，因为 P 的存在，runtime 并不需要做一个集中式的 goroutine 调度，每一个 M 都会在 P's local queue、global queue 或者其他 P 队列中找 G 执行，**减少全局锁对性能的影响**（如果只有全局队列的话，所有的P去全局队列取g都要加锁）。这也是 GMP Work-stealing 调度算法的核心。注意 P 的本地 G 队列还是可能面临一个并发访问的场景（会被窃取），为了避免加锁，这里 P 的本地队列是一个 **LockFree** 的队列，**窃取 G 时使用 CAS 原子操作来完成**。
+
+#### Work Stealing 机制
+
+> 以下链接是使用的master分支（此时是 go1.22），可能会在今后版本变动。
+
+[窃取最多会尝试窃取四次](https://github.com/golang/go/blob/master/src/runtime/proc.go#L3659-L3715)。
+
+[当一个 P 执行完本地所有的 G 之后，如果全局队列不为空的话，会从全局队列中获取(当前个数/GOMAXPROCS)个 G。如果全局队列为空的时候，会尝试挑选一个 P'，从它的 G 队列中**窃取一半**的 G](https://github.com/golang/go/blob/master/src/runtime/proc.go#L3317-L3380)。
+
+为了保证公平性，从随机位置上的 P 开始，而且遍历的顺序也随机化了(选择一个小于 GOMAXPROCS，且和它互为质数的步长)，保证遍历的顺序也随机化了。
+
+光在本地队列没有G时候再去全局队列中取G是不够的，可能会导致**全局队列饥饿**。P 的调度算法中还会**每个 N 轮调度之后就去全局队列拿一个 G**。
+
+如果所有的 p 本地队列一直都有 g，它们一直从本地队列中取 g 执行，那么全局队列中的 g 就会饥饿。
+![img.png](/images/lang/go/gmp-7.png)
+
+> Q: 什么情况下会把 g 放到 全局队列中呢？
+>
+> A: 
+>
+> + 新建 G 时 P 的本地 队列放不下已满并达到256个的时候会放**半数** G 到全局队列去
+> + **阻塞的系统调用返回时找不到空闲 P** 也会放到全局队列。
+
+#### 主动调度
+
+协程通过调用`runtime.Goshed`方法主动让渡自己的执行权利，之后这个协程会被放到全局队列中，等待后续被执行。
+
+#### 被动调度
+
+当G阻塞时（mutex，chan阻塞、network I/O等），不会阻塞M，M会寻找其他runnable的G；当阻塞的G恢复后会重新进入runnable进入P队列等待执行。
+
+> go 已经用 netpoller 实现了goroutine网络I/O阻塞不会导致M被阻塞，仅阻塞G
+
+#### Network poller（未看）
+
+G 发起网络 I/O 操作不会导致 M 被阻塞(仅阻塞G)，从而不会导致大量 M 被创建出来。将异步 I/O 转换为阻塞 I/O 的部分称为 netpoller。打开或接受连接都被设置为非阻塞模式。如果你试图对其进行 I/O 操作，并且文件描述符数据还没有准备好，G 会进入 gopark 函数，将当前正在执行的 G 状态保存起来，然后切换到新的堆栈上执行新的 G。
+
+那什么时候 G 被调度回来呢？
+
++ sysmon
++ schedule()：M 找 G 的调度函数
++ GC：start the world
+
+调用 netpoll() 在某一次调度 G 的过程中，处于就绪状态的 fd 对应的 G 就会被调度回来。
+
+G 的 gopark 状态：G 置为 waiting 状态，等待显示 goready 唤醒，在 poller 中用得较多，还有锁、chan 等。
+
+#### Hand Off 交接机制
+
+当 **M 阻塞**时，会将 M 上的 P 的运行队列交给其它 M 执行：
+
+![img.png](/images/lang/go/gmp-8.png)
+调用 syscall 后会解绑 P (不知道这个 线程syscall 需要多久)，**然后 M 和 G（等M的syscall的返回) 进入阻塞**，而 P 此时的状态就是 syscall，表明这个 P 的 G 正在 syscall 中，这时的 P 是不能被调度给别的 M 的。如果在**短时间内阻塞(10ms)**的 M 就唤醒了，那么 M 会优先来重新获取这个 P，能获取到就继续绑回去，这样有利于数据的**局部性**。
+
+系统监视器 (system monitor)，称为 sysmon，会定时扫描。在执行 syscall 时, 如果某个 P 的 G 执行超过一个 sysmon tick(10ms)，就会把他设为 idle，**重新调度给需要的 M，强制解绑**。
+
+![img.png](/images/lang/go/gmp-9.png)
+
+P1 和 M 脱离后目前在 idle list 中等待被绑定（处于 syscall 状态）。而 syscall 结束后 M 按照如下规则执行直到满足其中一个条件：
+
++ 尝试获取同一个 P(P1)，恢复执行 G
++ 尝试获取 idle list 中的其他空闲 P，恢复执行 G
++ **找不到空闲 P，把 G 放回 global queue，M 放回到 m' idle list**
+
+当使用了 syscall，Go 无法限制 Blocked OS threads 的数量。
+
+> The GOMAXPROCS variable limits the number of operating system threads that can execute user-level Go code simultaneously. There is no limit to the number of threads that can be blocked in system calls on behalf of Go code; those do not count against the GOMAXPROCS limit. This package’s GOMAXPROCS function queries and changes the limit.
+
+#### 抢占式调度 与 sysmon
+
+![img.png](/images/lang/go/gmp-10.png)
+sysmon 也叫监控线程，它**无需 P 也可以运行**，他是一个死循环，每20us~10ms循环一次，循环完一次就 sleep 一会，为什么会是一个变动的周期呢，主要是避免空转，如果每次循环都没什么需要做的事，那么 sleep 的时间就会加大。
+
++ 释放闲置超过5分钟的 span 物理内存；
++ 如果超过2分钟没有垃圾回收，强制执行；
++ 将长时间未处理的 netpoll 添加到全局队列；
++ 向长时间运行的 G 任务发出**抢占调度**；
++ 收回因 syscall 长时间阻塞的 P；
+
+![img.png](/images/lang/go/gmp-11.png)
+**当 G 在 M 上执行时间超过10ms**，sysmon 调用 preemptone 将 G 标记为 stackPreempt 。因此需要在某个地方触发检测逻辑，Go 当前是在检查栈是否溢出的地方判定(morestack())，M 会保存当前 G 的上下文，重新进入调度逻辑。
+
+但是这种抢占是有限制的，比如一个for死循环，这个 g 就一直执行，但是无法将他给抢占调度。
+
+信号抢占：[go1.14基于信号的抢占式调度实现原理](https://xiaorui.cc/archives/6535)
+
+异步抢占，注册 sigurg 信号，通过 sysmon 检测，对 M 对应的线程发送信号，触发注册的 handler，它往当前 G 的 PC 中插入一条指令(调用某个方法)，在处理完 handler，G 恢复后，自己把自己推到了 global queue 中。
+
+#### spin thread
+
+**线程自旋**（死循环）是相对于线程阻塞（阻塞就是休眠）而言的，表象就是循环执行一个指定逻辑(**调度逻辑，目的是不停地寻找 G**)。这样做的问题显而易见，如果 G 迟迟不来，CPU 会白白浪费在这无意义的计算上。但好处也很明显，降低了 M 的上下文切换成本，提高了性能。在两个地方引入自旋：
+
++ 类型1：M 不带 P 的找 P 挂载（一有 P 释放就结合）
++ 类型2：M 带 P 的找 G 运行（一有 runable 的 G 就执行）
+
+**本质是不能让非休眠的线程空闲，因为线程是真正的执行单元。**
+
+为了避免过多浪费 CPU 资源，自旋的 M 最多只允许 GOMAXPROCS (Busy P)。同时当有类型1的自旋 M 存在时，类型2的自旋 M 就不阻塞，阻塞会释放 P，一释放 P 就马上被类型1的自旋 M 抢走了，没必要。
+
+在新 G 被创建、M 进入系统调用、M 从空闲被激活这三种状态变化前，调度器会确保至少有一个自旋 M 存在（唤醒或者创建一个 M），除非没有空闲的 P。
+
++ 当新 G 创建，如果有可用 P，就意味着新 G 可以被立即执行，即便不在同一个 P 也无妨，所以我们保留一个自旋的 M（这时应该不存在类型1的自旋只有类型2的自旋）就可以保证新 G 很快被运行。
++ 当 M 进入系统调用，意味着 M 不知道何时可以醒来，那么 M 对应的 P 中剩下的 G 就得有新的 M 来执行，所以我们保留一个自旋的 M 来执行剩下的 G（这时应该不存在类型2的自旋只有类型1的自旋）。
++ 如果 M 从空闲变成活跃，意味着可能一个处于自旋状态的 M 进入工作状态了，这时要检查并确保还有一个自旋 M 存在，以防还有 G 或者还有 P 空着的。
+
+自旋线程是为了尽量避免P的空闲，从而尽可能不浪费并行能力（执行 g）。
+
+#### scheduler affinity（亲缘性调度）
+
+![img.png](/images/lang/go/gmp-12.png)
+
+在 chan 来回通信的 goroutine 会导致频繁的 blocks，即**频繁地在本地队列中重新排队**。然而，由于本地队列是 FIFO 实现，如果另一个 goroutine 占用线程，**unblock goroutine 不能保证尽快运行**。
+
+goroutine #9 在 chan 被阻塞后恢复。但是，它必须等待#2、#5和#4之后才能运行。goroutine #5将阻塞其线程，从而延迟goroutine #9，并使其面临被另一个 P 窃取的风险。
+
+![img.png](/images/lang/go/gmp-13.png)
+针对 communicate-and-wait 模式，进行了亲缘性调度的优化。Go 1.5 在 P 中**引入了 `runnext` 特殊的一个字段**，可以**高优先级**执行 unblock G。
+
+goroutine #9现在被标记为下一个可运行的。这种新的优先级排序允许 goroutine 在再次被阻塞之前快速运行。这一变化对运行中的标准库产生了总体上的积极影响，提高了一些包的性能。
+
+### Goroutine Lifecycle
+
+
+
+
+
+
+
+### Goroutine  调度时机

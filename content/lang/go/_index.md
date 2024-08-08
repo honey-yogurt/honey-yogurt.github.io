@@ -4,7 +4,7 @@ date: 2024-02-20T12:56:33+08:00
 draft: false
 ---
 
-目录：
+基本知识点：
 + [类型](/lang/go/types)
 + [字面量和组合字面量](/lang/go/literal)
 + [值部](/lang/go/value)
@@ -19,8 +19,9 @@ draft: false
 + [接口](/lang/go/interface)
 + [指针](/lang/go/pointer)
 + [非类型安全指针](/lang/go/unsafePointer)
-+ [反射](/lang/go/reflect)
 + [通道](/lang/go/channel)
++ [寻址](/lang/go/addressing)
++ [反射](/lang/go/reflect)
 + sync
   + [Mutex](/lang/go/mutex)
   + [RWMutex](/lang/go/rwmutex)
@@ -34,3 +35,11 @@ draft: false
 + [Context](/lang/go/context)
 + [unsafe](/lang/go/unsafe)
 + [Cgo](/lang/go/cgo)
++ [gmp](/lang/go/gmp)
+
+
+源码阅读：
+
+
+面经：
++ [面经](/lang/go/interview)
