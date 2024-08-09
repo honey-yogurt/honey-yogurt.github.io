@@ -3,165 +3,6 @@ title = 'gmp'
 date = 2024-05-16T09:19:53+08:00
 +++
 
-## GMP 设计
-## goroutine lifecycle
-![img.png](/images/lang/go/gmp-14.png)
-整个程序始于一段汇编， 而在随后的 `runtime·rt0_go`（也是汇编程序）中，会执行很多初始化工作。
-
-+ 绑定 m0 和 g0，m0就是程序的主线程，程序启动必然会拥有一个主线程，这个就是 m0。g0 负责调度，即 shedule() 函数。
-+ 创建 P，绑定 m0 和 p0，首先会创建 GOMAXPROCS 个 P ，存储在 sched 的 空闲链表(pidle)。
-+ 新建任务 g 到 p0 本地队列，m0 的 g0 会创建一个 指向 `runtime.main()` 的 g ，并放到 p0 的本地队列。
-
-`runtime.main()`: 启动 sysmon 线程；启动 GC 协程；执行 init，即代码中的各种 init 函数；执行 `main.main` 函数。
-
-> 通过 m0 p0 创建多个P，然后推一个 `runtime.main` 函数的一个 g 到p0，执行 g0，
-
-执行`main.main` ，`main` 函数可能会创建多个 `go func` ，这时候会触发 Wakeup 唤醒机制：有空闲的 P 而没有在 spinning 状态的 M 时候, 需要去唤醒一个空闲(睡眠)的 M 或者新建一个。当线程首次创建时，会执行一个特殊的 G，即 g0，它负责管理和调度 G。
-
-### g0
-![img.png](/images/lang/go/gmp-15.png)
-Go 基于两种断点将 G 调度到线程上：
-
-+ 当 G 阻塞时：系统调用、互斥锁或 chan。阻塞的 G 进入睡眠模式/进入队列，并允许 Go 安排和运行等待其他的 G。
-+ 在函数调用期间，如果 G 必须扩展其堆栈。这个断点允许 Go 调度另一个 G 并避免运行 G 占用 CPU。
-
-在这两种情况下，运行调度程序的 g0 将当前 G 替换为另一个 G，即 ready to run。然后，选择的 G 替换 g0 并在线程上运行。与常规 G 相反，g0 有一个固定和更大的栈。
-
-+ Defer 函数的分配
-+ GC 收集，比如 STW、扫描 G 的堆栈和标记、清除操作
-+ 栈扩容，当需要的时候，由 g0 进行扩栈操作
-
-在 Go 中，G 的切换相当轻便，其中需要保存的状态仅仅涉及以下两个：
-
-+ Goroutine 在停止运行前执行的指令，程序当前要运行的指令是记录在程序计数器（PC）中的， G 稍后将在同一指令处恢复运行；
-+ G 的堆栈，以便在再次运行时还原局部变量；
-
-![img.png](/images/lang/go/gmp-16.png)
-从 g 到 g0 或从 g0 到 g 的切换是相当迅速的，它们只包含少量固定的指令。相反，对于调度阶段，调度程序需要检查许多资源以便确定下一个要运行的 G。
-
-+ 当前 g 阻塞在 chan 上并切换到 g0：
-  1. PC 和堆栈指针一起保存在内部结构中；
-  2. 将 g0 设置为正在运行的 goroutine；
-  3. g0 的堆栈替换当前堆栈；
-+ g0 寻找新的 Goroutine 来运行
-+ g0 使用所选的 Goroutine 进行切换： 
-  1. PC 和堆栈指针是从其内部结构中获取的；
-  2. 程序跳转到对应的 PC 地址；
-
-![img.png](/images/lang/go/gmp-17.png)
-
-为了更好地分发空闲的 G ，调度器也有自己的列表。它实际上有两个列表：一个包含已分配栈的 G，另一个包含释放过堆栈的 G（无栈）。
-
-锁保护 central list，因为任何 M 都可以访问它。当本地列表长度超过64时，调度程序持有的列表从 P 获取 G。然后一半的 G 将移动到中心列表。需求回收 G 是一种节省分配成本的好方法。但是，由于堆栈是动态增长的，现有的G 最终可能会有一个大栈。因此，当堆栈增长（即超过2K）时，Go 不会保留这些栈。
-> Q: 不是说256吗？怎么现在又是64？
-
-## m 工作机制
-在 runtime 中有三种线程，一种是主线程，一种是用来跑 sysmon 的线程，一种是普通的用户线程。主线程在 runtime 由对应的全局变量: runtime.m0 来表示。用户线程就是普通的线程了，和 p 绑定，执行 g 中的任务。虽然说是有三种，实际上前两种线程整个 runtime 就只有一个实例。用户线程才会有很多实例。
-
-### 主线程 m0
-主线程中用来跑 runtime.main，流程线性执行，没有跳转:
-```mermaid
-graph TD
-runtime.main --> A[init max stack size]
-A --> B[systemstack execute -> newm -> sysmon]
-B --> runtime.lockOsThread
-runtime.lockOsThread --> runtime.init
-runtime.init --> runtime.gcenable
-runtime.gcenable --> main.init
-main.init --> main.main
-```
-
-## GMP 数据结构
-### goroutine
-goroutine 的内部数据结构可以在 `runtime.runtime2.go` 文件中
-```go
-// stack 描述的是 Go 的执行栈，下界和上界分别为 [lo, hi]
-// 如果从传统内存布局的角度来讲，Go 的栈实际上是分配在 C 语言中的堆区的
-// 所以才能比 ulimit -s 的 stack size 还要大(1GB)
-type stack struct {
-    lo uintptr
-    hi uintptr
-}
-// g 的运行现场
-type gobuf struct {
-    sp   uintptr    // sp 寄存器
-    pc   uintptr    // pc 寄存器
-    g    guintptr   // g 指针
-    ctxt unsafe.Pointer // 这个似乎是用来辅助 gc 的
-    ret  sys.Uintreg
-    lr   uintptr    // 这是在 arm 上用的寄存器，不用关心
-    bp   uintptr    // 开启 GOEXPERIMENT=framepointer，才会有这个
-}
-type g struct {
-    // 简单数据结构，lo 和 hi 成员描述了栈的下界和上界内存地址
-    stack       stack
-	// 在函数的栈增长 prologue 中用 sp 寄存器和 stackguard0 来做比较
-	// 如果 sp 比 stackguard0 小(因为栈向低地址方向增长)，那么就触发栈拷贝和调度
-	// 正常情况下 stackguard0 = stack.lo + StackGuard
-	// 不过 stackguard0 在需要进行调度时，会被修改为 StackPreempt
-	// 以触发抢占s
-	stackguard0 uintptr
-	// stackguard1 是在 C 栈增长 prologue 作对比的对象
-	// 在 g0 和 gsignal 栈上，其值为 stack.lo+StackGuard
-	// 在其它的栈上这个值是 ~0(按 0 取反)以触发 morestack 调用(并 crash)
-	stackguard1 uintptr
-	m              *m             // 当前与 g 绑定的 m
-    sched          gobuf          // goroutine 的现场
-    goid         uint64 // Goroutine的唯一标识符。
-    param          unsafe.Pointer // wakeup 时的传入参数
-    atomicstatus atomic.Uint32 // Goroutine状态的原子化版本，如运行、阻塞等，用于并发访问。
-	preempt        bool     // 抢占标记，这个为 true 时，stackguard0 是等于 stackpreempt 的
-    lockedm        muintptr // 如果调用了 LockOsThread，那么这个 g 会绑定到某个 m 上
-    gopc           uintptr // 创建该 goroutine 的语句的指令地址
-    startpc        uintptr // goroutine 函数的指令地址
-	selectDone     uint32         // 该 g 是否正在参与 select，是否已经有人从 select 中胜出
-}
-```
-此外，Goroutine的内部数据结构还包含其他一些字段，用于管理调度、垃圾回收等。这些字段的具体细节可能会因Golang版本和运行时实现而有所不同。
-
-当 g 遇到阻塞，或需要等待的场景时，会被打包成 sudog 这样一个结构。一个 g 可能被打包为多个 sudog 分别挂在不同的等待队列上:
-```go
-// sudog 代表在等待列表里的 g，比如向 channel 发送/接收内容时
-// 之所以需要 sudog 是因为 g 和同步对象之间的关系是多对多的
-// 一个 g 可能会在多个等待队列中，所以一个 g 可能被打包为多个 sudog
-// 多个 g 也可以等待在同一个同步对象上
-// 因此对于一个同步对象就会有很多 sudog 了
-// sudog 是从一个特殊的池中进行分配的。用 acquireSudog 和 releaseSudog 来分配和释放 sudog
-type sudog struct {
-
-    // 之后的这些字段都是被该 g 所挂在的 channel 中的 hchan.lock 来保护的
-    // shrinkstack depends on
-    // this for sudogs involved in channel ops.
-    g *g
-
-    // isSelect 表示一个 g 是否正在参与 select 操作
-    // 所以 g.selectDone 必须用 CAS 来操作，以胜出唤醒的竞争
-    isSelect bool
-    next     *sudog
-    prev     *sudog
-    elem     unsafe.Pointer // data element (may point to stack)
-
-    // 下面这些字段则永远都不会被并发访问
-    // 对于 channel 来说，waitlink 只会被 g 访问
-    // 对于信号量来说，所有的字段，包括上面的那些字段都只在持有 semaRoot 锁时才可以访问
-    acquiretime int64
-    releasetime int64
-    ticket      uint32
-    parent      *sudog // semaRoot binary tree
-    waitlink    *sudog // g.waiting list or semaRoot
-    waittail    *sudog // semaRoot
-    c           *hchan // channel
-}
-```
-
-
-
-## --------------分割线-------------
-
-
-
-
-
 ## 进程、线程、协程（Goroutine）
 
 在仅支持进程的操作系统中，进程是拥有资源和独立调度的基本单位。在引入线程的操作系统中，**线程是独立调度的基本单位，进程是资源拥有的基本单位**。在同一进程中，线程的切换不会引起进程切换。在不同进程中进行线程切换,如从一个进程内的线程切换到另一个进程中的线程时，会引起进程切换。
@@ -270,7 +111,7 @@ GMP模型大致调用流程如下：
 
 + 线程M想运行任务就需得获取 P，即与P关联绑定。
 + 然从 P 的本地队列获取 G
-+ 若P的本地队列中没有可运行的G，M 会尝试从全局队列拿一批G放到P的本地队列，若全局队列也未找到可运行的G时候，M会随机从其他 P 的本地队列**偷一半**放到自己 P 的本地队列。
++ 若P的本地队列中没有可运行的G，M 会尝试从全局队列拿一批G放到P的本地队列，若全局队列也未找到可运行的G时候，M会随机从其他 P 的本地队列**偷一半**放到自己 P 的本地队列。如果还是没有 g，就会从 Network Poller 上拿一个。
 + 拿到可运行的G之后，M 运行 G，G 执行之后，M 会从 P 获取下一个 G，不断重复下去。
 
 ![img](/images/lang/go/gmp_20.jpeg)
@@ -287,7 +128,7 @@ GMP模型大致调用流程如下：
 
 [窃取最多会尝试窃取四次](https://github.com/golang/go/blob/master/src/runtime/proc.go#L3659-L3715)。
 
-[当一个 P 执行完本地所有的 G 之后，如果全局队列不为空的话，会从全局队列中获取(当前个数/GOMAXPROCS)个 G。如果全局队列为空的时候，会尝试挑选一个 P'，从它的 G 队列中**窃取一半**的 G](https://github.com/golang/go/blob/master/src/runtime/proc.go#L3317-L3380)。
+[当一个 P 执行完本地所有的 G 之后，如果全局队列不为空的话，会从全局队列中获取(当前个数/GOMAXPROCS)个 G。如果全局队列为空的时候，会尝试挑选一个 P'，从它的 G 队列中**窃取一半**的 G，如果还是没有取到 g，会从 network poller 中拿一个 g](https://github.com/golang/go/blob/master/src/runtime/proc.go#L3317-L3380)。
 
 为了保证公平性，从随机位置上的 P 开始，而且遍历的顺序也随机化了(选择一个小于 GOMAXPROCS，且和它互为质数的步长)，保证遍历的顺序也随机化了。
 
@@ -402,10 +243,254 @@ goroutine #9现在被标记为下一个可运行的。这种新的优先级排�
 
 ### Goroutine Lifecycle
 
+#### m0 & g0
+
+M0 是启动程序后的编号为 0 的**主线程**，这个 M 对应的实例会在全局变量 runtime.m0 中，不需要在 heap 上分配，**M0 负责执行初始化操作和启动第一个 G， 在之后 M0 就和其他的 M 一样了**。
+
+G0 是每次启动一个 M 都会第一个创建的 gourtine，**G0 仅用于负责调度的 G**，G0 不指向任何可执行的函数，所以不能被抢占也不会被调度，每个 M 都会有一个自己的 G0。在调度或系统调用时会使用 G0 的栈空间，**全局变量的 G0 是 M0 的 G0**。G0的栈是系统分配的，比普通的G栈（2KB）要大，不能扩容也不能缩容。
+
+#### m 的工作机制
+
+在 runtime 中有三种线程，一种是主线程（m0），一种是用来跑 sysmon 的线程，一种是普通的用户线程。主线程在 runtime 由对应的全局变量` runtime.m0` 来表示。用户线程就是普通的线程了，和 p 绑定，执行 g 中的任务。虽然说是有三种，实际上前两种线程整个 runtime 就只有一个实例。用户线程才会有很多实例。
+
+#### g0 的调度
+
+![img.png](/images/lang/go/gmp-15.png)
+Go 基于两种断点将 G 调度到线程上：
+
++ 当 **G 阻塞**时：系统调用、互斥锁或 chan。阻塞的 G 进入睡眠模式/进入队列，并允许 Go 安排和运行等待其他的 G。
++ **在函数调用期间，如果 G 必须扩展其堆栈**。这个断点允许 Go 调度另一个 G 并避免运行 G 占用 CPU。
+
+在这两种情况下，运行调度程序的 g0 将当前 G 替换为另一个 G，即 ready to run。然后，选择的 G 替换 g0 并在线程上运行。与常规 G 相反，g0 有一个固定和更大的栈。
+
++ Defer 函数的分配
++ GC 收集，比如 STW、扫描 G 的堆栈和标记、清除操作
++ 栈扩容，当需要的时候，由 g0 进行扩栈操作
+
+在 Go 中，G 的切换相当轻便，其中需要保存的状态仅仅涉及以下两个：
+
++ Goroutine 在停止运行前执行的指令，程序当前要运行的指令是记录在程序计数器（PC）中的， G 稍后将在同一指令处恢复运行；
++ G 的堆栈，以便在再次运行时还原局部变量；
+
+![img.png](/images/lang/go/gmp-16.png)
+从 g 到 g0 或从 g0 到 g 的切换是相当迅速的，它们只包含少量固定的指令。相反，对于调度阶段，调度程序需要检查许多资源以便确定下一个要运行的 G。
+
+1. 当前 g 阻塞在 chan 上并切换到 g0：
+   1. **PC 和堆栈指针一起保存在内部结构中**；
+   2. **将 g0 设置为正在运行的 goroutine**；
+   3. **g0 的堆栈替换当前堆栈**；
+
+2. g0 寻找新的 Goroutine 来运行
+
+3. g0 使用所选的 Goroutine 进行切换： 
+   1. **PC 和堆栈指针是从其内部结构中获取的**；
+   2. **程序跳转到对应的 PC 地址**；
 
 
 
+G 很容易创建，栈很小以及快速的上下文切换。然而，一个产生许多 shortlive 的 g 的程序将花费相当长的时间来创建和销毁它们。
+
+每个 P 维护一个 freelist G（空闲 g），保持这个列表是本地的，这样做的好处是不使用任何锁来 push/get 一个空闲的 G。**当 G 退出当前工作时**，它将被 push 到这个空闲列表中。
+
+> 本质是为了复用g，避免大量的 shortlive（短生命周期）的  g 创建销毁开销大。
+
+![image-20240809161534220](/images/lang/go/gmp_31.png)
+
+为了更好地分发**空闲的 G** ，调度器也有自己的列表（全局）。它实际上有两个列表：一个包含已分配栈的 G，另一个包含释放过堆栈的 G（无栈）。
+
+> 1、有stack的 g 是刚运行完的协程；2、没有stack的 g 是运行完后经过一次gc了的，在并发标记阶段归还的；
+
+![img.png](/images/lang/go/gmp-17.png)
+
+锁保护 central list，因为任何 M 都可以访问它。当本地列表长度超过64时，调度程序持有的列表从 P 获取 G。然后一半的 G 将移动到中心列表。回收 G 是一种节省分配成本的好方法。但是，由于堆栈是动态增长的，现有的G 最终可能会有一个大栈。因此，当堆栈增长（即超过2K）时，Go 不会保留这些栈。即使是空闲的g，因为会浪费内存。
+
+> Q: 不是说超过256个，P才会推送到全局G队列吗？这里怎么又是64？
+>
+> A: G 其实是有状态的，P 中最多保存 256 个**可运行**的 g，而 p 本地的 freelist 都是**空闲的** g，超过64时，会推一半的 g 进入全局的 freelist。
 
 
 
-### Goroutine  调度时机
+#### 生命周期大致流程
+
+![img](/images/lang/go/gmp_30.png)
+
+从一段代码开始分析：
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello world")
+}
+```
+
+1. runtime创建最初的线程m0和goroutine g0，并把2者关联。
+2. 调度器初始化：初始化**m0、栈、垃圾回收**，设置M的最大数量，以及创建和初始化由**GOMAXPROCS**个`P`构成的`P列表`
+3. 示例代码中的main函数是`main.main`，`runtime`中也有1个main函数——`runtime.main`，代码经过编译后，`runtime.main`会调用`main.main`，程序启动时会为`runtime.main`创建goroutine，称它为main goroutine吧，然后把main goroutine加入到P的本地队列。
+4. 启动m0，m0已经绑定了P，会从P的本地队列获取G，获取到main goroutine。
+5. G拥有栈，M根据G中的栈信息和调度信息设置运行环境
+6. M运行G
+7. G退出，再次回到M获取可运行的G，这样重复下去，直到`main.main`退出，`runtime.main`执行Defer和Panic处理，或调用`runtime.exit`退出程序。
+
+`runtime.main()`: 启动 sysmon 线程；启动 GC 协程；执行 init，即代码中的各种 init 函数；执行 `main.main` 函数。
+
+> 调度器的生命周期几乎占满了一个Go程序的一生，`runtime.main`的goroutine执行之前都是为调度器做准备工作，`runtime.main`的goroutine运行，才是调度器的真正开始，直到`runtime.main`结束而结束
+
+### Goroutine  调度场景
+
+#### 创建 g
+
+正在 M1 上运行的 P，有一个 G1。通过 go func() 创建 G2 后，为了局部性，G2 会被优先放入 P 的本地队列。
+
+![img](/images/lang/go/gmp_32.jpg)
+
+#### g 运行完成
+
+M1 上的 G1 运行完成后（调用 goexit() 函数），M1 上运行的 G 会切换为 G0，然后从 M1 绑定的 P 的本地队列中获取 G2 来执行。
+
+![img](/images/lang/go/gmp_33.jpg)
+
+#### G个数大于本地队列（可运行的 g ）长度
+
+P 的本地队列最多能存 256 个 G，这里以最多能存 4 个为例说明。 
+
+正在 M1 上运行的 G2 要通过 go func() 创建 6 个 G。在前 4 个 G 放入 P 的本地队列中后，由于本地队列已满，创建第 5 个 G（G7）时，会将 P 的**本地队列中前一半**和 G7 一起**打乱顺序**放入全局队列中，P 的本地队列剩下的 G 则往前移动。然后创建第 6 个 G（G8），这时 P 的本地队列还未满，将 G8 放入本地队列中。
+
+![img](/images/lang/go/gmp_34.jpg)
+
+#### M 的自旋状态
+
+创建新的 G 时，运行的 G2 会尝试**唤醒其它空闲的 M** 绑定 P 去执行，如果 G2 唤醒了 M2，M2 绑定了一个 P2，会先运行 M2 的 G0。
+
+这时候的 M2 没有从 P2 的本地队列中找到可用的 G，会进去**自旋状态**（spinning），处于自旋状态的 M2 会尝试**从全局空闲线程队列里获取 G**，放入 P2 的本地队列去执行。
+
+获取的数量计算公式如下，每个 P 应该从全局队列承担一定数量的 G，但又不能太多，要给其他 P 留一些，提高并发执行的效率。
+
+> n = min(len(globrunqsize)/GOMAXPROCS + 1, len(localrunsize/2))
+
+![img](/images/lang/go/gmp_35.jpg)
+
+#### 任务窃取机制
+
+一个处于自旋状态的 M 会尝试先从全局队列寻找可运行的 G，如果全局队列为空，则会从其他 P 偷取一些 G 放到自己绑定的 P 的本地队列，数量是那个 P 运行队列的一半。
+
+![img](/images/lang/go/gmp_36.jpg)
+
+#### G M 发生阻塞
+
+当 G2 发生系统调用进入阻塞，其所在的 M1 也会阻塞（当然，也有 m 不阻塞的情况），进入内核状态等待系统资源。
+
+为了提高并发运行效率，和 M1 绑定的 P1 会从休眠线程队列中寻找空闲的 M3 执行，以避免 P1 本地队列的 G 因为所在的 M1 进入阻塞状态而全部无法执行。
+
+![img](/images/lang/go/gmp_37.jpg)
+
+#### G解除阻塞
+
+当刚才进入系统调用的 G2 解除了阻塞，其所在的 M1 会重新寻找 P 去执行，优先会去找原来的 P。
+
+如果找不到一个 P 进行绑定，则将解除阻塞的 G2 **放入全局队列**，等待其他的 P 获取和调度执行，然后将 M1 放回休眠线程队列中。
+
+![img](/images/lang/go/gmp_38.jpg)
+
+## 源码分析
+
+### 数据结构与状态
+
+#### g
+
+goroutine 的内部数据结构可以在 `runtime.runtime2.go` 文件中
+
+```go
+// stack 描述的是 Go 的执行栈，下界和上界分别为 [lo, hi]
+// 如果从传统内存布局的角度来讲，Go 的栈实际上是分配在 C 语言中的堆区的
+// 所以才能比 ulimit -s 的 stack size 还要大(1GB)
+type stack struct {
+    lo uintptr
+    hi uintptr
+}
+// g 的运行现场
+type gobuf struct {
+    sp   uintptr    // sp 寄存器
+    pc   uintptr    // pc 寄存器
+    g    guintptr   // g 指针
+    ctxt unsafe.Pointer // 这个似乎是用来辅助 gc 的
+    ret  sys.Uintreg
+    lr   uintptr    // 这是在 arm 上用的寄存器，不用关心
+    bp   uintptr    // 开启 GOEXPERIMENT=framepointer，才会有这个
+}
+type g struct {
+    // 简单数据结构，lo 和 hi 成员描述了栈的下界和上界内存地址
+    stack       stack
+	// 在函数的栈增长 prologue 中用 sp 寄存器和 stackguard0 来做比较
+	// 如果 sp 比 stackguard0 小(因为栈向低地址方向增长)，那么就触发栈拷贝和调度
+	// 正常情况下 stackguard0 = stack.lo + StackGuard
+	// 不过 stackguard0 在需要进行调度时，会被修改为 StackPreempt
+	// 以触发抢占s
+	stackguard0 uintptr
+	// stackguard1 是在 C 栈增长 prologue 作对比的对象
+	// 在 g0 和 gsignal 栈上，其值为 stack.lo+StackGuard
+	// 在其它的栈上这个值是 ~0(按 0 取反)以触发 morestack 调用(并 crash)
+	stackguard1 uintptr
+	m              *m             // 当前与 g 绑定的 m
+    sched          gobuf          // goroutine 的现场
+    goid         uint64 // Goroutine的唯一标识符。
+    param          unsafe.Pointer // wakeup 时的传入参数
+    atomicstatus atomic.Uint32 // Goroutine状态的原子化版本，如运行、阻塞等，用于并发访问。
+	preempt        bool     // 抢占标记，这个为 true 时，stackguard0 是等于 stackpreempt 的
+    lockedm        muintptr // 如果调用了 LockOsThread，那么这个 g 会绑定到某个 m 上
+    gopc           uintptr // 创建该 goroutine 的语句的指令地址
+    startpc        uintptr // goroutine 函数的指令地址
+	selectDone     uint32         // 该 g 是否正在参与 select，是否已经有人从 select 中胜出
+}
+```
+
+主要字段如下： 
+
++ stack：描述了当前协程的栈内存范围 [stack.lo, stack.hi) 
++ stackguard0：用于调度器抢占式调度 
++ _defer 和 _panic：记录这个协程最内侧的 panic 和 defer 
++ 结构体 m：记录当前 G 占用的线程 M，可能为空 
++ sched：存储 G 的调度相关的数据 
++ atomicstatus：表示 G 的状态 
++ goid：表示 G 的 id，对开发者不可见
+
+此外，Goroutine的内部数据结构还包含其他一些字段，用于管理调度、垃圾回收等。这些字段的具体细节可能会因Golang版本和运行时实现而有所不同。
+
+当 g 遇到阻塞，或需要等待的场景时，会被打包成 sudog 这样一个结构。一个 g 可能被打包为多个 sudog 分别挂在不同的等待队列上:
+
+```go
+// sudog 代表在等待列表里的 g，比如向 channel 发送/接收内容时
+// 之所以需要 sudog 是因为 g 和同步对象之间的关系是多对多的
+// 一个 g 可能会在多个等待队列中，所以一个 g 可能被打包为多个 sudog
+// 多个 g 也可以等待在同一个同步对象上
+// 因此对于一个同步对象就会有很多 sudog 了
+// sudog 是从一个特殊的池中进行分配的。用 acquireSudog 和 releaseSudog 来分配和释放 sudog
+type sudog struct {
+
+    // 之后的这些字段都是被该 g 所挂在的 channel 中的 hchan.lock 来保护的
+    // shrinkstack depends on
+    // this for sudogs involved in channel ops.
+    g *g
+
+    // isSelect 表示一个 g 是否正在参与 select 操作
+    // 所以 g.selectDone 必须用 CAS 来操作，以胜出唤醒的竞争
+    isSelect bool
+    next     *sudog
+    prev     *sudog
+    elem     unsafe.Pointer // data element (may point to stack)
+
+    // 下面这些字段则永远都不会被并发访问
+    // 对于 channel 来说，waitlink 只会被 g 访问
+    // 对于信号量来说，所有的字段，包括上面的那些字段都只在持有 semaRoot 锁时才可以访问
+    acquiretime int64
+    releasetime int64
+    ticket      uint32
+    parent      *sudog // semaRoot binary tree
+    waitlink    *sudog // g.waiting list or semaRoot
+    waittail    *sudog // semaRoot
+    c           *hchan // channel
+}
+```
+
