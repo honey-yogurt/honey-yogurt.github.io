@@ -36,6 +36,7 @@ draft: false
 + [unsafe](/lang/go/unsafe)
 + [Cgo](/lang/go/cgo)
 + [gmp](/lang/go/gmp)
++ [gc](/lang/go/gc)
 
 
 源码阅读：
