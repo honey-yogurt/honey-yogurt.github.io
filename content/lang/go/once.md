@@ -1,10 +1,9 @@
 +++
 title = 'Once'
 date = 2024-08-04T21:01:46+08:00
-
 +++
 
-**Once 可以用来执行且仅仅执行一次动作，常常用于单例对象的初始化场景。**
+**Once 可以用来执行且仅仅执行一次动作，常常用于单例对象的初始化场景**。
 
 初始化单例资源有很多方法，比如定义 package 级别的变量，这样程序在启动的时候就可以初始化：
 
@@ -44,9 +43,9 @@ func main() {
 }
 ```
 
-这三种方法都是线程安全的，并且后两种方法还可以根据传入的参数实现定制化的初始化操作。
+这三种方法都是**线程安全**的，并且后两种方法还可以根据传入的参数实现定制化的初始化操作。
 
-但是很多时候我们是要延迟进行初始化的，所以有时候单例资源的初始化，我们会使用下面的方法：
+但是很多时候我们是要**延迟**进行初始化的，所以有时候单例资源的初始化，我们会使用下面的方法：
 
 ```go
 package main
@@ -140,46 +139,46 @@ func main() {
 在标准库内部实现中也常常能看到 Once 的身影。比如标准库内部 [cache](https://github.com/golang/go/blob/f0e97546962736fe4aa73b7c7ed590f0134515e1/src/cmd/go/internal/cache/default.go) 的实现上，就使用了 Once 初始化 Cache 资源，包括 defaultDir 值的获取：
 
 ```go
-    func Default() *Cache { // 获取默认的Cache
+func Default() *Cache { // 获取默认的Cache
     defaultOnce.Do(initDefaultCache) // 初始化cache
     return defaultCache
-  }
+}
   
     // 定义一个全局的cache变量，使用Once初始化，所以也定义了一个Once变量
-  var (
+var (
     defaultOnce  sync.Once
     defaultCache *Cache
-  )
+)
 
-    func initDefaultCache() { //初始化cache,也就是Once.Do使用的f函数
+func initDefaultCache() { //初始化cache,也就是Once.Do使用的f函数
     ......
     defaultCache = c
-  }
+}
 
     // 其它一些Once初始化的变量，比如defaultDir
-    var (
+var (
     defaultDirOnce sync.Once
     defaultDir     string
     defaultDirErr  error
-  )
+)
 ```
 
 除此之外，还有保证只调用一次 copyenv 的 envOnce，strings 包下的 Replacer，time 包中的[测试](https://github.com/golang/go/blob/b71eafbcece175db33acfb205e9090ca99a8f984/src/time/export_test.go#L12)，Go 拉取库时的[proxy](https://github.com/golang/go/blob/8535008765b4fcd5c7dc3fb2b73a856af4d51f9b/src/cmd/go/internal/modfetch/proxy.go#L103)，net.pipe，crc64，Regexp，……，数不胜数。我给你重点介绍一下很值得我们学习的 math/big/sqrt.go 中实现的一个数据结构，它通过 Once 封装了一个只初始化一次的值：
 
 ```go
    // 值是3.0或者0.0的一个数据结构
-   var threeOnce struct {
+var threeOnce struct {
     sync.Once
     v *Float
-  }
+ }
   
-    // 返回此数据结构的值，如果还没有初始化为3.0，则初始化
-  func three() *Float {
+    // 返回此数据结构的值，如果还没有初始化为3.0，则初始化 
+func three() *Float {
     threeOnce.Do(func() { // 使用Once初始化
       threeOnce.v = NewFloat(3.0)
     })
     return threeOnce.v
-  }
+ }
 ```
 
 它将 sync.Once 和 *Float **封装成一个对象**，提供了只初始化一次的值 v。 你看它的 three 方法的实现，虽然每次都调用 threeOnce.Do 方法，但是参数只会被调用一次。
@@ -241,7 +240,7 @@ func (o *Once) doSlow(f func()) {
 
 ## 死锁
 
-**Do 方法会执行一次 f，但是如果 f 中再次调用这个 Once 的 Do 方法的话，就会导致死锁的情况出现。**这还不是无限递归的情况，而是的的确确的 Lock 的递归调用导致的死锁。
+**Do 方法会执行一次 f，但是如果 f 中再次调用这个 Once 的 Do 方法的话，就会导致死锁的情况出现**。这还不是无限递归的情况，而是的的确确的 Lock 的递归调用导致的死锁。
 
 ```go
 func main() {
@@ -312,16 +311,21 @@ func (o *Once) slowDo(f func() error) error {
 
 我们怎么查询是否初始化过呢？
 
-目前的 Once 实现可以保证你调用任意次数的 once.Do 方法，它只会执行这个方法一次。但是，有时候我们需要打一个标记。如果初始化后我们就去执行其它的操作，标准库的 Once 并不会告诉你是否初始化完成了，只是让你放心大胆地去执行 Do 方法，所以，你还**需要一个辅助变量，自己去检查是否初始化过了**，比如通过下面的代码中的 inited 字段：
+目前的 Once 实现可以保证你调用任意次数的 once.Do 方法，它只会执行这个方法一次。但是，有时候我们需要打一个标记。如果初始化后我们就去执行其它的操作，标准库的 Once 并不会告诉你**是否初始化完成**了，只是让你放心大胆地去执行 Do 方法，所以，你还**需要一个辅助变量，自己去检查是否初始化过了**，比如通过下面的代码中的 inited 字段：
 
 ```go
-type AnimalStore struct {once   sync.Once;inited uint32}
+type AnimalStore struct {
+	once  sync.Once
+	inited uint32
+}
+
 func (a *AnimalStore) Init() // 可以被并发调用
   a.once.Do(func() {
     longOperationSetupDbOpenFilesQueuesEtc()
     atomic.StoreUint32(&a.inited, 1)
   })
 }
+
 func (a *AnimalStore) CountOfCats() (int, error) { // 另外一个goroutine
   if atomic.LoadUint32(&a.inited) == 0 { // 初始化后才会执行真正的业务逻辑
     return 0, NotYetInitedError
